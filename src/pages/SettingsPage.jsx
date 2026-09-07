@@ -1,0 +1,4 @@
+import React from 'react'
+import { ShieldCheck } from 'lucide-react'
+import { PageHeading } from '../components/Shared'
+export default function SettingsPage({ profile }) { return <><PageHeading title="Settings" subtitle="Your account and workspace security." /><div className="settings-grid"><div className="card form-card"><p className="eyebrow">PROFILE</p><h2>Account settings</h2><div className="field"><label>Full name</label><input value={profile.full_name || ''} readOnly /></div><div className="field"><label>Role</label><input value={profile.role} readOnly /></div><div className="connected-label"><ShieldCheck size={15} /> Supabase Auth connected</div></div><div className="card form-card"><p className="eyebrow">DATA & PRIVACY</p><h2>Protected workspace</h2><p className="settings-copy">Site access and audit history are protected by Supabase Row Level Security.</p></div></div></> }

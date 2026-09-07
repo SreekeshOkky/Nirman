@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    ["opencode-browser-tools", { "autoInstall": true, "enableMcp": true, "mcpTools": "all" }]
+  ]
+}
