@@ -3,6 +3,7 @@ import { BarChart3, Bell, Building2, ChevronDown, ClipboardList, FileText, Layou
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import PageSkeleton from './PageSkeleton'
+import BrandMark from './BrandMark'
 
 const nav = [
   { label: 'Overview', to: '/', icon: LayoutDashboard },
@@ -22,7 +23,7 @@ export default function AppLayout({ site, sites, siteId, setSiteId, isBuilder, p
 
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
-      <Link to="/" className="brand"><span className="brand-mark">N</span><span>Nirmanam</span></Link>
+      <Link to="/" className="brand"><BrandMark /><span>Nirmanam</span></Link>
       <div className="workspace-label">WORKSPACE</div>
       <nav className="main-nav">{items.map(({ label, to, icon: Icon }) => <NavLink end={to === '/'} key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => setMobileNav(false)}><Icon size={18} strokeWidth={1.8} /><span>{label}</span>{label === 'Sites' && <span className="nav-count">{sites.length}</span>}</NavLink>)}</nav>
       <div className="sidebar-bottom"><div className="workspace-label">ACCOUNT</div><NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Settings2 size={18} strokeWidth={1.8} /><span>Settings</span></NavLink><button className="nav-item" onClick={signOut}><LogOut size={18} strokeWidth={1.8} /><span>Sign out</span></button></div>
