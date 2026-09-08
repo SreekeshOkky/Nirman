@@ -1,5 +1,48 @@
-import React from 'react'
-import { Plus } from 'lucide-react'
-import Modal from './Modal'
+import React from "react";
+import { Plus } from "lucide-react";
+import Modal from "./Modal";
 
-export default function SiteModal({ onClose, onSubmit, saving }) { return <Modal title="Create a construction site" subtitle="Set up a new workspace for your project." onClose={onClose}><form onSubmit={onSubmit}><div className="field"><label>Site name</label><input name="name" placeholder="e.g. Palm Court Renovation" required /></div><div className="form-grid"><div className="field"><label>Location</label><input name="location" placeholder="City or address" /></div><div className="field"><label>Budget</label><input name="budget" type="number" placeholder="₹ 0" /></div></div><div className="field"><label>Client name <span>Optional</span></label><input name="client_name" placeholder="Client or owner" /></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={saving}><Plus size={17} /> {saving ? 'Creating...' : 'Create site'}</button></div></form></Modal> }
+export default function SiteModal({ onClose, onSubmit, saving }) {
+  return (
+    <Modal
+      title="Create a construction site"
+      subtitle="Set up a new workspace for your project."
+      onClose={onClose}
+    >
+      <form onSubmit={onSubmit}>
+        <div className="field">
+          <label>Site name</label>
+          <input
+            name="name"
+            placeholder="e.g. Palm Court Renovation"
+            required
+          />
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label>Location</label>
+            <input name="location" placeholder="City or address" />
+          </div>
+          <div className="field">
+            <label>Budget</label>
+            <input name="budget" type="number" placeholder="₹ 0" />
+          </div>
+        </div>
+        <div className="field">
+          <label>
+            Client name <span>Optional</span>
+          </label>
+          <input name="client_name" placeholder="Client or owner" />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary-button" disabled={saving}>
+            <Plus size={17} /> {saving ? "Creating..." : "Create site"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

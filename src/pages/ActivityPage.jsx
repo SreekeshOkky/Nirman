@@ -1,4 +1,45 @@
-import React from 'react'
-import { ShieldCheck } from 'lucide-react'
-import { PageHeading } from '../components/Shared'
-export default function ActivityPage({ audit = [] }) { return <><PageHeading title="Activity log" subtitle="Immutable history across all your sites." /><div className="card activity-card full-card"><div className="card-head"><div><h2>Audit history</h2><p>Every important change is recorded.</p></div><span className="secure-label"><ShieldCheck size={14} /> Builder only</span></div><div className="activity-list">{audit.map(item => <div className="activity-item" key={item.id}><div className="avatar avatar-dark">RK</div><div className="activity-copy"><div><strong>{item.action}</strong><time>{item.created_at}</time></div><span>{item.description}</span><small>{item.sites?.name ? `${item.sites.name} · ` : ''}by {item.profiles?.full_name || item.actor || 'You'}</small></div></div>)}{!audit.length && <div className="empty-state">No activity recorded yet.</div>}</div></div></> }
+import React from "react";
+import { ShieldCheck } from "lucide-react";
+import { PageHeading } from "../components/Shared";
+export default function ActivityPage({ audit = [] }) {
+  return (
+    <>
+      <PageHeading
+        title="Activity log"
+        subtitle="Immutable history across all your sites."
+      />
+      <div className="card activity-card full-card">
+        <div className="card-head">
+          <div>
+            <h2>Audit history</h2>
+            <p>Every important change is recorded.</p>
+          </div>
+          <span className="secure-label">
+            <ShieldCheck size={14} /> Builder only
+          </span>
+        </div>
+        <div className="activity-list">
+          {audit.map((item) => (
+            <div className="activity-item" key={item.id}>
+              <div className="avatar avatar-dark">RK</div>
+              <div className="activity-copy">
+                <div>
+                  <strong>{item.action}</strong>
+                  <time>{item.created_at}</time>
+                </div>
+                <span>{item.description}</span>
+                <small>
+                  {item.sites?.name ? `${item.sites.name} · ` : ""}by{" "}
+                  {item.profiles?.full_name || item.actor || "You"}
+                </small>
+              </div>
+            </div>
+          ))}
+          {!audit.length && (
+            <div className="empty-state">No activity recorded yet.</div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
