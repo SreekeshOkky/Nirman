@@ -498,6 +498,28 @@ button {
   font-size: 11px;
   margin: 0;
 }
+.card-export {
+  height: 30px;
+  padding: 0 11px;
+  font-size: 11px;
+}
+.monthly-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.monthly-select {
+  border: 1px solid #dfe5df;
+  border-radius: 6px;
+  background: #fff;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-family: "DM Mono", monospace;
+  color: #59655e;
+}
+.month-entries {
+  margin-top: 6px;
+}
 .legend {
   display: flex;
   gap: 14px;

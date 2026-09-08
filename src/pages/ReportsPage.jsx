@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { PageHeading, money } from "../components/Shared";
+import { PageHeading, money, EntryRow } from "../components/Shared";
+import EntryDetailModal from "../components/EntryDetailModal";
 import { api } from "../lib/api";
 export default function ReportsPage({ site, siteId, token }) {
   const [entries, setEntries] = useState([]);
@@ -10,6 +11,10 @@ export default function ReportsPage({ site, siteId, token }) {
     balance: 0,
   });
   const [monthly, setMonthly] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [monthEntries, setMonthEntries] = useState([]);
+  const [monthLoading, setMonthLoading] = useState(false);
+  const [viewing, setViewing] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!siteId) return;
@@ -25,6 +30,7 @@ export default function ReportsPage({ site, siteId, token }) {
         setEntries(ledger.items);
         setSummary(totals);
         setMonthly(months);
+        if (months.length) setSelectedMonth(months[months.length - 1].month);
       })
       .catch(() => {})
       .finally(() => {
@@ -34,6 +40,39 @@ export default function ReportsPage({ site, siteId, token }) {
       cancelled = true;
     };
   }, [siteId, token]);
+  useEffect(() => {
+    if (!siteId || !selectedMonth) {
+      setMonthEntries([]);
+      return;
+    }
+    let cancelled = false;
+    setMonthLoading(true);
+    const year = Number(selectedMonth.slice(0, 4));
+    const month = Number(selectedMonth.slice(5, 7));
+    const lastDay = new Date(year, month, 0).getDate();
+    api
+      .ledger(
+        siteId,
+        {
+          from_date: `${selectedMonth}-01`,
+          to_date: `${selectedMonth}-${String(lastDay).padStart(2, "0")}`,
+          page_size: 100,
+        },
+        token,
+      )
+      .then((result) => {
+        if (!cancelled) setMonthEntries(result.items);
+      })
+      .catch(() => {
+        if (!cancelled) setMonthEntries([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMonthLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [siteId, selectedMonth, token]);
   if (!site)
     return (
       <>
@@ -62,26 +101,37 @@ export default function ReportsPage({ site, siteId, token }) {
       acc[key] = (acc[key] || 0) + Number(entry.amount);
       return acc;
     }, {});
-  async function download() {
-    const response = await fetch(api.reportExportUrl(siteId), {
+  async function download(url, filename) {
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url;
-    link.download = `${site.name}-ledger.csv`;
+    link.href = objectUrl;
+    link.download = filename;
     link.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(objectUrl);
   }
+  function exportAll() {
+    download(api.reportExportUrl(siteId), `${site.name}-ledger.csv`);
+  }
+  function exportSelectedMonth() {
+    if (!selectedMonth) return;
+    download(
+      `${api.reportExportUrl(siteId)}?month=${selectedMonth}`,
+      `${site.name}-${selectedMonth}-ledger.csv`,
+    );
+  }
+  const selectedMonthData = monthly.find((row) => row.month === selectedMonth);
   return (
     <>
       <PageHeading
         title="Reports"
         subtitle="Understand the financial health of this construction site."
       >
-        <button className="secondary-button" onClick={download}>
-          <Download size={15} /> Export CSV
+        <button className="secondary-button" onClick={exportAll}>
+          <Download size={15} /> Export all entries
         </button>
       </PageHeading>
       <section className="report-summary">
@@ -139,22 +189,72 @@ export default function ReportsPage({ site, siteId, token }) {
               <h2>Monthly status</h2>
               <p>Income, expenses, and balance</p>
             </div>
+            <div className="monthly-actions">
+              {monthly.length > 0 && (
+                <select
+                  className="monthly-select"
+                  value={selectedMonth}
+                  onChange={(event) => setSelectedMonth(event.target.value)}
+                >
+                  {monthly.map((row) => (
+                    <option key={row.month} value={row.month}>
+                      {row.month}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                className="secondary-button card-export"
+                onClick={exportSelectedMonth}
+                disabled={!selectedMonth}
+              >
+                <Download size={14} /> Export
+              </button>
+            </div>
           </div>
-          <div className="monthly-list">
-            {monthly.map((row) => (
-              <div className="monthly-row" key={row.month}>
-                <span>{row.month}</span>
-                <strong className="positive">{money(row.income)}</strong>
-                <strong>{money(row.expenses)}</strong>
-                <b>{money(row.balance)}</b>
+          {!monthly.length ? (
+            <div className="empty-state">No monthly data yet.</div>
+          ) : (
+            <>
+              {selectedMonthData && (
+                <div className="monthly-row month-head">
+                  <span>{selectedMonthData.month}</span>
+                  <strong className="positive">
+                    {money(selectedMonthData.income)}
+                  </strong>
+                  <strong>{money(selectedMonthData.expenses)}</strong>
+                  <b>{money(selectedMonthData.balance)}</b>
+                </div>
+              )}
+              <div className="entries-list month-entries">
+                {monthLoading ? (
+                  <div className="empty-state">Loading entries…</div>
+                ) : !monthEntries.length ? (
+                  <div className="empty-state">
+                    No entries in {selectedMonth}.
+                  </div>
+                ) : (
+                  monthEntries.map((entry) => (
+                    <EntryRow
+                      key={entry.id}
+                      entry={entry}
+                      onView={setViewing}
+                    />
+                  ))
+                )}
               </div>
-            ))}
-            {!monthly.length && (
-              <div className="empty-state">No monthly data yet.</div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </section>
+      {viewing && (
+        <EntryDetailModal
+          entryId={viewing.id}
+          siteId={siteId}
+          token={token}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </>
   );
 }

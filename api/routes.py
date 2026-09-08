@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from datetime import datetime, timezone
 from decimal import Decimal
+import calendar
 import csv
 import io
 from typing import Literal
@@ -442,10 +443,8 @@ def site_summary(site_id: str, user: User):
     return {"income": income, "expenses": expenses, "balance": income - expenses, "expense_by_category": [{"category": key, "amount": value} for key, value in by_category.items()], "entry_count": len(entries)}
 
 
-@router.get("/sites/{site_id}/reports/monthly")
-def monthly_report(site_id: str, user: User, year: int | None = None):
-    ensure_site_access(site_id, user)
-    entries = get_admin_client().table("ledger_entries").select("entry_type,amount,entry_date").eq("site_id", site_id).is_("deleted_at", "null").execute().data or []
+def _monthly_rows(db, site_id: str, year: int | None = None) -> list[dict]:
+    entries = db.table("ledger_entries").select("entry_type,amount,entry_date").eq("site_id", site_id).is_("deleted_at", "null").execute().data or []
     months: dict[str, dict[str, Decimal]] = {}
     for row in entries:
         month = row["entry_date"][:7]
@@ -458,6 +457,12 @@ def monthly_report(site_id: str, user: User, year: int | None = None):
     return [{"month": month, **values} for month, values in sorted(months.items())]
 
 
+@router.get("/sites/{site_id}/reports/monthly")
+def monthly_report(site_id: str, user: User, year: int | None = None):
+    ensure_site_access(site_id, user)
+    return _monthly_rows(get_admin_client(), site_id, year)
+
+
 def _csv_cell(value) -> str:
     text = str(value or "")
     if text[:1] in {"=", "+", "-", "@"}:
@@ -466,9 +471,9 @@ def _csv_cell(value) -> str:
 
 
 @router.get("/sites/{site_id}/reports/export")
-def export_report(site_id: str, user: User):
+def export_report(site_id: str, user: User, month: str | None = Query(default=None, max_length=7)):
     ensure_site_access(site_id, user)
-    rows = (
+    query = (
         get_admin_client()
         .table("ledger_entries")
         .select(
@@ -477,10 +482,14 @@ def export_report(site_id: str, user: User):
         .eq("site_id", site_id)
         .is_("deleted_at", "null")
         .order("entry_date", desc=True)
-        .execute()
-        .data
-        or []
     )
+    if month:
+        year, _, mon = month.partition("-")
+        if not (year.isdigit() and mon.isdigit() and 1 <= int(mon) <= 12):
+            raise HTTPException(status_code=422, detail="month must be in YYYY-MM format")
+        last_day = calendar.monthrange(int(year), int(mon))[1]
+        query = query.gte("entry_date", f"{month}-01").lte("entry_date", f"{month}-{last_day:02d}")
+    rows = query.execute().data or []
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -506,7 +515,8 @@ def export_report(site_id: str, user: User):
             ]
         )
     record_audit(get_admin_client(), site_id=site_id, actor_id=user.id, action="report_exported", entity_type="report", description="Exported ledger report")
-    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="nirmanam-{site_id}-ledger.csv"'})
+    fn_suffix = f"-{month}" if month else ""
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="nirmanam-{site_id}{fn_suffix}-ledger.csv"'})
 
 
 @router.post("/sites/{site_id}/attachments", status_code=status.HTTP_201_CREATED)
