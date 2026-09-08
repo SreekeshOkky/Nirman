@@ -103,7 +103,6 @@ export default function EntryDetailModal({ entryId, siteId, token, onClose }) {
         <Detail label="Category">{entry.categories?.name}</Detail>
         <Detail label="Entry date">{entry.entry_date}</Detail>
         <Detail label="Payment method">{entry.payment_method}</Detail>
-        <Detail label="Reference">{entry.reference}</Detail>
         <Detail label="Added by">{createdBy}</Detail>
         <Detail label="Recorded">{formatTime(entry.created_at)}</Detail>
         {entry.updated_at !== entry.created_at && (

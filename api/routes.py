@@ -458,15 +458,53 @@ def monthly_report(site_id: str, user: User, year: int | None = None):
     return [{"month": month, **values} for month, values in sorted(months.items())]
 
 
+def _csv_cell(value) -> str:
+    text = str(value or "")
+    if text[:1] in {"=", "+", "-", "@"}:
+        text = "'" + text
+    return text
+
+
 @router.get("/sites/{site_id}/reports/export")
 def export_report(site_id: str, user: User):
     ensure_site_access(site_id, user)
-    rows = get_admin_client().table("ledger_entries").select("entry_date,entry_type,amount,description,payment_method,reference,categories(name)").eq("site_id", site_id).is_("deleted_at", "null").order("entry_date", desc=True).execute().data or []
+    rows = (
+        get_admin_client()
+        .table("ledger_entries")
+        .select(
+            "id,entry_date,entry_type,amount,description,payment_method,created_at,updated_at,categories(name),notes(content),attachments(file_name),profiles!ledger_entries_created_by_fkey(full_name,email)"
+        )
+        .eq("site_id", site_id)
+        .is_("deleted_at", "null")
+        .order("entry_date", desc=True)
+        .execute()
+        .data
+        or []
+    )
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Date", "Type", "Category", "Amount", "Description", "Payment method", "Reference"])
+    writer.writerow(
+        ["Date", "Type", "Category", "Amount", "Description", "Payment method", "Note", "Added by", "Created at", "Last updated", "Receipt"]
+    )
     for row in rows:
-        writer.writerow([row.get("entry_date", ""), row.get("entry_type", ""), (row.get("categories") or {}).get("name", ""), row.get("amount", ""), row.get("description", ""), row.get("payment_method", ""), row.get("reference", "")])
+        notes = "; ".join(note.get("content", "") for note in row.get("notes") or [])
+        receipts = ", ".join(attachment.get("file_name", "") for attachment in row.get("attachments") or [])
+        updated_at = row.get("updated_at", "")
+        writer.writerow(
+            [
+                row.get("entry_date", ""),
+                row.get("entry_type", ""),
+                (row.get("categories") or {}).get("name", ""),
+                row.get("amount", ""),
+                row.get("description", ""),
+                row.get("payment_method", ""),
+                notes,
+                (row.get("profiles") or {}).get("full_name", ""),
+                row.get("created_at", ""),
+                updated_at if updated_at != row.get("created_at") else "",
+                receipts,
+            ]
+        )
     record_audit(get_admin_client(), site_id=site_id, actor_id=user.id, action="report_exported", entity_type="report", description="Exported ledger report")
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="nirmanam-{site_id}-ledger.csv"'})
 
