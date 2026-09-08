@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -7,6 +7,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { api } from "../lib/api";
 import { money, PageHeading } from "../components/Shared";
 
 function Metric({ label, value, icon, accent }) {
@@ -21,8 +22,25 @@ function Metric({ label, value, icon, accent }) {
     </div>
   );
 }
-export default function DashboardPage({ overview, isBuilder }) {
+export default function DashboardPage({
+  overview,
+  setOverview,
+  token,
+  isBuilder,
+}) {
   const totals = overview.totals;
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .overview(token)
+      .then((data) => {
+        if (!cancelled) setOverview(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, setOverview]);
   return (
     <>
       <PageHeading
@@ -76,22 +94,24 @@ export default function DashboardPage({ overview, isBuilder }) {
                 <span className="site-icon">
                   <Building2 size={16} />
                 </span>
-                <div>
+                <div className="site-overview-name">
                   <strong>{site.name}</strong>
                   <small>{site.location || "Location not added"}</small>
                 </div>
-                <span className="site-overview-stat">
-                  <small>Income</small>
-                  <b className="positive">{money(site.income)}</b>
-                </span>
-                <span className="site-overview-stat">
-                  <small>Expenses</small>
-                  <b>{money(site.expenses)}</b>
-                </span>
-                <span className="site-overview-stat">
-                  <small>Balance</small>
-                  <b>{money(site.balance)}</b>
-                </span>
+                <div className="site-overview-stats">
+                  <span className="site-overview-stat">
+                    <small>Income</small>
+                    <b className="positive">{money(site.income)}</b>
+                  </span>
+                  <span className="site-overview-stat">
+                    <small>Expenses</small>
+                    <b>{money(site.expenses)}</b>
+                  </span>
+                  <span className="site-overview-stat">
+                    <small>Balance</small>
+                    <b>{money(site.balance)}</b>
+                  </span>
+                </div>
                 <ArrowUpRight size={15} />
               </Link>
             ))}

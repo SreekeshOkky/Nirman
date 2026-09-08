@@ -7,7 +7,8 @@ import jwt
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
+import httpx
 
 from .config import get_settings
 
@@ -22,14 +23,37 @@ class CurrentUser:
     full_name: str
 
 
+def _retrying_http() -> httpx.Client:
+    # Retry transient transport failures (SSL handshake timeouts, connection
+    # resets, 5xx) before surfacing an error to callers.
+    return httpx.Client(
+        transport=httpx.HTTPTransport(retries=3),
+        timeout=httpx.Timeout(30.0, connect=10.0),
+    )
+
+
+_admin_client: Client | None = None
+
+
 def get_admin_client() -> Client:
-    settings = get_settings()
-    return create_client(settings.supabase_url, settings.supabase_secret_key)
+    global _admin_client
+    if _admin_client is None:
+        settings = get_settings()
+        _admin_client = create_client(
+            settings.supabase_url,
+            settings.supabase_secret_key,
+            options=ClientOptions(httpx_client=_retrying_http()),
+        )
+    return _admin_client
 
 
 def get_auth_client() -> Client:
     settings = get_settings()
-    return create_client(settings.supabase_url, settings.supabase_anon_key)
+    return create_client(
+        settings.supabase_url,
+        settings.supabase_anon_key,
+        options=ClientOptions(httpx_client=_retrying_http()),
+    )
 
 
 def _bearer_token(authorization: str | None) -> str:

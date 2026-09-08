@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { PageHeading, EntryRow } from "../components/Shared";
 import EntryModal from "../components/EntryModal";
+import EntryDetailModal from "../components/EntryDetailModal";
 import { api } from "../lib/api";
 export default function LedgerPage({
   entries,
@@ -17,6 +18,7 @@ export default function LedgerPage({
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [viewing, setViewing] = useState(null);
   const filtered = entries.filter(
     (entry) =>
       (!query ||
@@ -145,6 +147,7 @@ export default function LedgerPage({
             <EntryRow
               key={entry.id}
               entry={entry}
+              onView={setViewing}
               onEdit={startEdit}
               onDelete={remove}
             />
@@ -164,6 +167,14 @@ export default function LedgerPage({
           onSubmit={handleSubmit}
           saving={saving}
           editing={editing}
+        />
+      )}
+      {viewing && (
+        <EntryDetailModal
+          entryId={viewing.id}
+          siteId={siteId}
+          token={token}
+          onClose={() => setViewing(null)}
         />
       )}
     </>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -11,22 +11,28 @@ import { api } from "../lib/api";
 export default function CategoriesPage({
   categories,
   setCategories,
-  siteId,
   token,
   flash,
 }) {
+  const [items, setItems] = useState(categories);
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    api
+      .myCategories(token)
+      .then(setItems)
+      .catch(() => {});
+  }, [token]);
   async function add(event) {
     event.preventDefault();
     setSaving(true);
     try {
       const form = new FormData(event.currentTarget);
       const category = await api.createCategory(
-        siteId,
         { name: form.get("name"), type: form.get("type") },
         token,
       );
+      setItems((current) => [...current, category]);
       setCategories((current) => [...current, category]);
       setShow(false);
       flash("Category added");
@@ -35,7 +41,8 @@ export default function CategoriesPage({
     }
   }
   async function disable(category) {
-    await api.disableCategory(siteId, category.id, token);
+    await api.disableCategory(category.id, token);
+    setItems((current) => current.filter((item) => item.id !== category.id));
     setCategories((current) =>
       current.filter((item) => item.id !== category.id),
     );
@@ -45,7 +52,7 @@ export default function CategoriesPage({
     <>
       <PageHeading
         title="Categories"
-        subtitle="Customize how this site is organized."
+        subtitle="Your shared categories, used across all your sites."
       >
         <button className="primary-button" onClick={() => setShow(true)}>
           <Plus size={17} /> Add category
@@ -54,12 +61,12 @@ export default function CategoriesPage({
       <div className="card collection-card">
         <div className="collection-head">
           <div>
-            <h2>Categories for this site</h2>
-            <p>Default categories can be extended by builders.</p>
+            <h2>Your categories</h2>
+            <p>One common set applies to every site you own.</p>
           </div>
         </div>
         <div className="category-list">
-          {categories.map((category) => (
+          {items.map((category) => (
             <div className="category-item" key={category.id}>
               <span className={`category-badge ${category.type}`}>
                 {category.type === "income" ? (
@@ -89,7 +96,7 @@ export default function CategoriesPage({
       {show && (
         <Modal
           title="Add category"
-          subtitle="Create a category specific to this site."
+          subtitle="This category will be available on all your sites."
           onClose={() => setShow(false)}
         >
           <form onSubmit={add}>

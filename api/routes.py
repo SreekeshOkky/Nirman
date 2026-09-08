@@ -108,47 +108,118 @@ def archive_site(site_id: str, user: Builder):
     return updated
 
 
-@router.get("/sites/{site_id}/categories")
-def list_categories(site_id: str, user: User):
-    ensure_site_access(site_id, user)
-    return get_admin_client().table("categories").select("*").eq("site_id", site_id).eq("is_active", True).order("name").execute().data or []
+@router.get("/categories")
+def list_my_categories(user: User):
+    return (
+        get_admin_client()
+        .table("categories")
+        .select("*")
+        .is_("site_id", "null")
+        .eq("created_by", user.id)
+        .eq("is_active", True)
+        .order("name")
+        .execute()
+        .data
+        or []
+    )
 
 
-@router.post("/sites/{site_id}/categories", status_code=status.HTTP_201_CREATED)
-def create_category(site_id: str, payload: CategoryCreate, user: Builder):
-    ensure_site_access(site_id, user, builder_only=True)
+@router.post("/categories", status_code=status.HTTP_201_CREATED)
+def create_my_category(payload: CategoryCreate, user: User):
     db = get_admin_client()
-    response = db.table("categories").insert({**payload.model_dump(), "site_id": site_id, "created_by": user.id}).execute()
-    category = response.data[0]
-    record_audit(db, site_id=site_id, actor_id=user.id, action="category_created", entity_type="category", entity_id=category["id"], description=f"Created category {category['name']}")
-    return category
+    existing = (
+        db.table("categories")
+        .select("id")
+        .is_("site_id", "null")
+        .eq("created_by", user.id)
+        .ilike("name", payload.name)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="A category with this name already exists")
+    return db.table("categories").insert({**payload.model_dump(), "created_by": user.id}).execute().data[0]
 
 
-@router.patch("/sites/{site_id}/categories/{category_id}")
-def update_category(site_id: str, category_id: str, payload: CategoryUpdate, user: Builder):
-    ensure_site_access(site_id, user, builder_only=True)
+@router.patch("/categories/{category_id}")
+def update_my_category(category_id: str, payload: CategoryUpdate, user: User):
     db = get_admin_client()
-    current = db.table("categories").select("*").eq("id", category_id).eq("site_id", site_id).maybe_single().execute().data
+    current = (
+        db.table("categories")
+        .select("*")
+        .eq("id", category_id)
+        .is_("site_id", "null")
+        .eq("created_by", user.id)
+        .limit(1)
+        .execute()
+        .data
+    )
     if not current:
         raise HTTPException(status_code=404, detail="Category not found")
+    current = current[0]
     changes = payload.model_dump(exclude_none=True)
     if not changes:
         return current
-    updated = db.table("categories").update(changes).eq("id", category_id).execute().data[0]
-    record_audit(db, site_id=site_id, actor_id=user.id, action="category_updated", entity_type="category", entity_id=category_id, description=f"Updated category {updated['name']}", metadata=jsonable_encoder({"before": current, "after": updated}))
-    return updated
+    if "name" in changes:
+        existing = (
+            db.table("categories")
+            .select("id")
+            .is_("site_id", "null")
+            .eq("created_by", user.id)
+            .ilike("name", changes["name"])
+            .neq("id", category_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if existing:
+            raise HTTPException(status_code=409, detail="A category with this name already exists")
+    return db.table("categories").update(changes).eq("id", category_id).execute().data[0]
 
 
-@router.post("/sites/{site_id}/categories/{category_id}/disable")
-def disable_category(site_id: str, category_id: str, user: Builder):
-    ensure_site_access(site_id, user, builder_only=True)
+@router.post("/categories/{category_id}/disable")
+def disable_my_category(category_id: str, user: User):
     db = get_admin_client()
-    current = db.table("categories").select("*").eq("id", category_id).eq("site_id", site_id).maybe_single().execute().data
+    current = (
+        db.table("categories")
+        .select("*")
+        .eq("id", category_id)
+        .is_("site_id", "null")
+        .eq("created_by", user.id)
+        .limit(1)
+        .execute()
+        .data
+    )
     if not current:
         raise HTTPException(status_code=404, detail="Category not found")
-    updated = db.table("categories").update({"is_active": False}).eq("id", category_id).execute().data[0]
-    record_audit(db, site_id=site_id, actor_id=user.id, action="category_disabled", entity_type="category", entity_id=category_id, description=f"Disabled category {current['name']}")
-    return updated
+    return db.table("categories").update({"is_active": False}).eq("id", category_id).execute().data[0]
+
+
+@router.get("/sites/{site_id}/categories")
+def list_categories(site_id: str, user: User):
+    site = ensure_site_access(site_id, user)
+    db = get_admin_client()
+    site_rows = (
+        db.table("categories").select("*").eq("site_id", site_id).eq("is_active", True).execute().data or []
+    )
+    user_rows = (
+        db.table("categories")
+        .select("*")
+        .is_("site_id", "null")
+        .eq("created_by", site["owner_id"])
+        .eq("is_active", True)
+        .execute()
+        .data
+        or []
+    )
+    by_name: dict[str, dict] = {}
+    for row in user_rows + site_rows:
+        key = row["name"].lower()
+        preferred = row.get("site_id") is None
+        if key not in by_name or preferred:
+            by_name[key] = row
+    return sorted(by_name.values(), key=lambda row: row["name"].lower())
 
 
 @router.get("/sites/{site_id}/members")
@@ -230,19 +301,32 @@ def list_ledger(
     return {"items": response.data or [], "page": page, "page_size": page_size, "total": response.count or 0}
 
 
-def _validate_category(db, site_id: str, category_id: str, entry_type: str) -> dict:
-    response = db.table("categories").select("*").eq("id", category_id).eq("site_id", site_id).eq("is_active", True).maybe_single().execute()
-    category = response.data
-    if not category or category["type"] not in (entry_type, "both"):
+def _validate_category(db, site: dict, category_id: str, entry_type: str) -> dict:
+    response = (
+        db.table("categories")
+        .select("*")
+        .eq("id", category_id)
+        .eq("is_active", True)
+        .maybe_single()
+        .execute()
+    )
+    category = response.data if response else None
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    site_level = category.get("site_id")
+    usable = site_level == site["id"] or (
+        site_level is None and category.get("created_by") == site["owner_id"]
+    )
+    if not usable or category["type"] not in (entry_type, "both"):
         raise HTTPException(status_code=422, detail="Category is not available for this entry type")
     return category
 
 
 @router.post("/sites/{site_id}/ledger", status_code=status.HTTP_201_CREATED)
 def create_ledger_entry(site_id: str, payload: LedgerCreate, user: User):
-    ensure_site_access(site_id, user)
+    site = ensure_site_access(site_id, user)
     db = get_admin_client()
-    category = _validate_category(db, site_id, str(payload.category_id), payload.entry_type)
+    category = _validate_category(db, site, str(payload.category_id), payload.entry_type)
     row = payload.model_dump(mode="json", exclude={"note"})
     row.update({"site_id": site_id, "created_by": user.id})
     response = db.table("ledger_entries").insert(row).execute()
@@ -256,15 +340,20 @@ def create_ledger_entry(site_id: str, payload: LedgerCreate, user: User):
 @router.get("/sites/{site_id}/ledger/{entry_id}")
 def read_ledger_entry(site_id: str, entry_id: str, user: User):
     ensure_site_access(site_id, user)
-    response = get_admin_client().table("ledger_entries").select("*, categories(name,type), notes(*)").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null").maybe_single().execute()
-    if not response.data:
+    db = get_admin_client()
+    rows = db.table("ledger_entries").select("*, categories(name,type), notes(*), attachments(*), profiles!ledger_entries_created_by_fkey(full_name,email)").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null").limit(1).execute().data
+    if not rows:
         raise HTTPException(status_code=404, detail="Ledger entry not found")
-    return response.data
+    entry = rows[0]
+    for attachment in entry.get("attachments") or []:
+        signed = db.storage.from_("receipts").create_signed_url(attachment["storage_path"], 3600)
+        attachment["signed_url"] = signed.get("signedURL") or signed.get("signedUrl")
+    return entry
 
 
 @router.patch("/sites/{site_id}/ledger/{entry_id}")
 def update_ledger_entry(site_id: str, entry_id: str, payload: LedgerUpdate, user: Builder):
-    ensure_site_access(site_id, user, builder_only=True)
+    site = ensure_site_access(site_id, user, builder_only=True)
     db = get_admin_client()
     current_response = db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null").maybe_single().execute()
     current = current_response.data
@@ -275,7 +364,7 @@ def update_ledger_entry(site_id: str, entry_id: str, payload: LedgerUpdate, user
         raise HTTPException(status_code=400, detail="The entry type cannot be changed when editing. Delete and recreate the entry instead.")
     entry_type = changes.get("entry_type", current["entry_type"])
     if "category_id" in changes or "entry_type" in changes:
-        _validate_category(db, site_id, changes.get("category_id", current["category_id"]), entry_type)
+        _validate_category(db, site, changes.get("category_id", current["category_id"]), entry_type)
     updated = db.table("ledger_entries").update({**changes, "updated_by": user.id}).eq("id", entry_id).execute().data[0]
     record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_updated", entity_type="ledger_entry", entity_id=entry_id, description="Updated ledger entry", metadata=jsonable_encoder({"before": current, "after": updated}))
     return updated

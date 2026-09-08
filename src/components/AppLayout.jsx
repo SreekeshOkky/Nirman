@@ -32,6 +32,18 @@ const nav = [
   { label: "Notes", to: "/notes", icon: FileText },
 ];
 
+const pageLabels = [
+  { to: "/", label: "Overview" },
+  { to: "/sites", label: "Sites" },
+  { to: "/ledger", label: "Ledger" },
+  { to: "/reports", label: "Reports" },
+  { to: "/notes", label: "Notes" },
+  { to: "/team", label: "Team & access" },
+  { to: "/categories", label: "Categories" },
+  { to: "/activity", label: "Activity log" },
+  { to: "/settings", label: "Settings" },
+];
+
 export default function AppLayout({
   site,
   sites,
@@ -59,6 +71,15 @@ export default function AppLayout({
     navigate("/");
   };
   const selectedSiteId = siteId || sites[0]?.id || "";
+  const currentPage =
+    pageLabels.find(({ to }) =>
+      to === "/" ? location.pathname === "/" : location.pathname.startsWith(to),
+    )?.label || "Overview";
+  const noSiteContextPages = ["/", "/sites", "/activity", "/categories"];
+  const hasSiteContext = !noSiteContextPages.includes(location.pathname);
+  const breadcrumbRoot = hasSiteContext
+    ? site?.name || (sites.length ? sites[0].name : "No sites yet")
+    : "Workspace";
 
   return (
     <div className="app-shell">
@@ -116,9 +137,9 @@ export default function AppLayout({
             <Menu size={22} />
           </button>
           <div className="breadcrumb">
-            <span>Workspace</span>
+            <span>{breadcrumbRoot}</span>
             <span className="slash">/</span>
-            <strong>Overview</strong>
+            <strong>{currentPage}</strong>
           </div>
           <div className="top-actions">
             <button className="icon-button">
@@ -129,41 +150,39 @@ export default function AppLayout({
           </div>
         </header>
         <div className="page-wrap">
-          {location.pathname !== "/" &&
-            location.pathname !== "/sites" &&
-            location.pathname !== "/activity" && (
-              <div className="site-toolbar">
-                <label className="site-selector">
-                  <span className="site-icon">
-                    <Building2 size={16} />
-                  </span>
-                  <span>
-                    <small>VIEWING SITE</small>
-                    <strong>
-                      {site?.name ||
-                        (sites.length ? sites[0].name : "No sites yet")}
-                    </strong>
-                  </span>
-                  <ChevronDown size={16} />
-                  <select
-                    aria-label="Select site"
-                    value={selectedSiteId}
-                    onChange={(event) => setSiteId(event.target.value)}
-                    disabled={!sites.length}
-                  >
-                    {!sites.length && <option value="">No sites yet</option>}
-                    {sites.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="period-control">
-                  <span>Site workspace</span>
-                </div>
+          {hasSiteContext && (
+            <div className="site-toolbar">
+              <label className="site-selector">
+                <span className="site-icon">
+                  <Building2 size={16} />
+                </span>
+                <span>
+                  <small>VIEWING SITE</small>
+                  <strong>
+                    {site?.name ||
+                      (sites.length ? sites[0].name : "No sites yet")}
+                  </strong>
+                </span>
+                <ChevronDown size={16} />
+                <select
+                  aria-label="Select site"
+                  value={selectedSiteId}
+                  onChange={(event) => setSiteId(event.target.value)}
+                  disabled={!sites.length}
+                >
+                  {!sites.length && <option value="">No sites yet</option>}
+                  {sites.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="period-control">
+                <span>Site workspace</span>
               </div>
-            )}
+            </div>
+          )}
           {siteLoading ? (
             <PageSkeleton pathname={location.pathname} />
           ) : (

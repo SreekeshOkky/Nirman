@@ -162,7 +162,7 @@ The migration creates:
 - `attachments`
 - `audit_logs`
 
-It also creates default site categories, profile creation triggers, timestamp triggers, RLS policies, and the private `receipts` bucket.
+It also creates default user-level categories, profile creation triggers, timestamp triggers, RLS policies, and the private `receipts` bucket.
 
 Verify migration state:
 
@@ -303,10 +303,17 @@ POST   /api/invitations/{token}/accept
 
 ### Categories
 
+Categories are user-level and shared across all sites a user owns.
+
 ```text
-GET  /api/sites/{site_id}/categories
-POST /api/sites/{site_id}/categories
+GET    /api/categories
+POST   /api/categories
+PATCH  /api/categories/{category_id}
+POST   /api/categories/{category_id}/disable
+GET    /api/sites/{site_id}/categories
 ```
+
+`GET /api/sites/{site_id}/categories` returns the site owner's shared categories (deduplicated by name) plus any legacy site-level rows.
 
 ### Ledger
 

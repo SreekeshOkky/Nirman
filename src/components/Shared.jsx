@@ -1,9 +1,9 @@
 import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Eye, Pencil, Trash2 } from "lucide-react";
 
 export const money = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
-export function EntryRow({ entry, onEdit, onDelete }) {
+export function EntryRow({ entry, onView, onEdit, onDelete }) {
   const type = entry.entry_type || entry.type;
   return (
     <div className="entry-row">
@@ -34,6 +34,15 @@ export function EntryRow({ entry, onEdit, onDelete }) {
         {money(entry.amount)}
       </strong>
       <div className="row-actions">
+        {onView && (
+          <button
+            className="row-action"
+            title="View details"
+            onClick={() => onView(entry)}
+          >
+            <Eye size={14} />
+          </button>
+        )}
         {onEdit && (
           <button
             className="row-action"

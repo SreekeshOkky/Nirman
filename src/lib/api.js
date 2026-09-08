@@ -2,15 +2,19 @@ import { supabase } from "./supabase";
 
 const baseUrl = import.meta.env.VITE_API_URL || "/api";
 
-async function currentToken(token) {
-  if (!supabase) return token;
+async function sessionToken() {
+  if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
-  return data.session?.access_token || token;
+  const session = data.session;
+  if (!session) return null;
+  const expiring = (session.expires_at || 0) - 30 < Date.now() / 1000;
+  if (!expiring) return session.access_token;
+  const { data: refreshed } = await supabase.auth.refreshSession();
+  return refreshed?.session?.access_token || session.access_token;
 }
 
-export async function apiRequest(path, options = {}, token) {
-  const accessToken = await currentToken(token);
-  const response = await fetch(`${baseUrl}${path}`, {
+async function signedFetch(path, options, accessToken) {
+  return fetch(`${baseUrl}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -18,6 +22,33 @@ export async function apiRequest(path, options = {}, token) {
       ...(options.headers || {}),
     },
   });
+}
+
+function isDeadSession(error) {
+  const message = `${error?.message || ""}`.toLowerCase();
+  return (
+    message.includes("session from session_id claim") ||
+    message.includes("refresh token not found") ||
+    message.includes("refresh token has expired") ||
+    message.includes("user not found") ||
+    message.includes("jwt has expired")
+  );
+}
+
+export async function apiRequest(path, options = {}, token) {
+  let accessToken = (await sessionToken()) || token;
+  let response = await signedFetch(path, options, accessToken);
+  if (response.status === 401 && supabase) {
+    const { data: refreshed, error } = await supabase.auth.refreshSession();
+    const next = refreshed?.session?.access_token;
+    if (next && next !== accessToken) {
+      accessToken = next;
+      response = await signedFetch(path, options, accessToken);
+    } else if (error && isDeadSession(error)) {
+      await supabase.auth.signOut();
+      throw new Error("Your session expired. Please sign in again.");
+    }
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.detail || "Something went wrong");
   return payload;
@@ -31,24 +62,21 @@ export const api = {
     apiRequest("/sites", { method: "POST", body: JSON.stringify(data) }, token),
   categories: (siteId, token) =>
     apiRequest(`/sites/${siteId}/categories`, {}, token),
-  createCategory: (siteId, data, token) =>
+  myCategories: (token) => apiRequest("/categories", {}, token),
+  createCategory: (data, token) =>
     apiRequest(
-      `/sites/${siteId}/categories`,
+      "/categories",
       { method: "POST", body: JSON.stringify(data) },
       token,
     ),
-  updateCategory: (siteId, categoryId, data, token) =>
+  updateCategory: (categoryId, data, token) =>
     apiRequest(
-      `/sites/${siteId}/categories/${categoryId}`,
+      `/categories/${categoryId}`,
       { method: "PATCH", body: JSON.stringify(data) },
       token,
     ),
-  disableCategory: (siteId, categoryId, token) =>
-    apiRequest(
-      `/sites/${siteId}/categories/${categoryId}/disable`,
-      { method: "POST" },
-      token,
-    ),
+  disableCategory: (categoryId, token) =>
+    apiRequest(`/categories/${categoryId}/disable`, { method: "POST" }, token),
   members: (siteId, token) => apiRequest(`/sites/${siteId}/members`, {}, token),
   inviteMember: (siteId, data, token) =>
     apiRequest(
@@ -80,6 +108,8 @@ export const api = {
       { method: "PATCH", body: JSON.stringify(data) },
       token,
     ),
+  ledgerEntry: (siteId, entryId, token) =>
+    apiRequest(`/sites/${siteId}/ledger/${entryId}`, {}, token),
   deleteLedger: (siteId, entryId, token) =>
     apiRequest(
       `/sites/${siteId}/ledger/${entryId}`,
@@ -114,7 +144,7 @@ export const api = {
     const suffix = ledgerEntryId
       ? `?ledger_entry_id=${encodeURIComponent(ledgerEntryId)}`
       : "";
-    return currentToken(token)
+    return sessionToken()
       .then((accessToken) =>
         fetch(`${baseUrl}/sites/${siteId}/attachments${suffix}`, {
           method: "POST",
