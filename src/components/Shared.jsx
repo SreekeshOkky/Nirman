@@ -20,7 +20,12 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
         <strong>
           {entry.category || entry.categories?.name || "Ledger entry"}
         </strong>
-        <span>{entry.description || entry.detail || "No description"}</span>
+        <span>
+          {entry.description || entry.detail || "No description"}
+          {entry.payment_method && (
+            <em className="pay-badge">{entry.payment_method}</em>
+          )}
+        </span>
       </div>
       <div className="entry-date">{entry.entry_date}</div>
       <div className="entry-person">

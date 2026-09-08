@@ -1,7 +1,21 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { PageHeading } from "../components/Shared";
-export default function ActivityPage({ audit = [] }) {
+import { api } from "../lib/api";
+export default function ActivityPage({ token }) {
+  const [audit, setAudit] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .workspaceAudit(token)
+      .then((result) => {
+        if (!cancelled && result.items) setAudit(result.items);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
   return (
     <>
       <PageHeading

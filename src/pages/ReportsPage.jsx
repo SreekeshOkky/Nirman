@@ -1,15 +1,39 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { PageHeading, money } from "../components/Shared";
 import { api } from "../lib/api";
-export default function ReportsPage({
-  summary,
-  entries,
-  monthly,
-  site,
-  siteId,
-  token,
-}) {
+export default function ReportsPage({ site, siteId, token }) {
+  const [entries, setEntries] = useState([]);
+  const [summary, setSummary] = useState({
+    income: 0,
+    expenses: 0,
+    balance: 0,
+  });
+  const [monthly, setMonthly] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!siteId) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      api.ledger(siteId, {}, token),
+      api.summary(siteId, token),
+      api.monthly(siteId, token),
+    ])
+      .then(([ledger, totals, months]) => {
+        if (cancelled) return;
+        setEntries(ledger.items);
+        setSummary(totals);
+        setMonthly(months);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [siteId, token]);
   if (!site)
     return (
       <>
@@ -20,6 +44,17 @@ export default function ReportsPage({
         <div className="card empty-state">No site selected.</div>
       </>
     );
+  if (loading) {
+    return (
+      <>
+        <PageHeading
+          title="Reports"
+          subtitle="Understand the financial health of this construction site."
+        />
+        <div className="card empty-state">Loading report…</div>
+      </>
+    );
+  }
   const expenseByCategory = entries
     .filter((e) => e.entry_type === "expense")
     .reduce((acc, entry) => {

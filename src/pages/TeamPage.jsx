@@ -1,17 +1,30 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ShieldCheck, UserPlus } from "lucide-react";
 import { PageHeading } from "../components/Shared";
 import InviteModal from "../components/InviteModal";
 import { api } from "../lib/api";
-export default function TeamPage({
-  members,
-  setMembers,
-  siteId,
-  token,
-  flash,
-}) {
+export default function TeamPage({ siteId, token, flash }) {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!siteId) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .members(siteId, token)
+      .then((data) => {
+        if (!cancelled) setMembers(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [siteId, token]);
   async function invite(event) {
     event.preventDefault();
     setSaving(true);
@@ -53,20 +66,24 @@ export default function TeamPage({
           </div>
           <span className="role-tag">Full access</span>
         </div>
-        {members.map((member) => (
-          <div className="member-row" key={member.id}>
-            <div className="avatar avatar-blue">SP</div>
-            <div>
-              <strong>
-                {member.profiles?.full_name ||
-                  member.profiles?.email ||
-                  "Pending supervisor"}
-              </strong>
-              <small>{member.profiles?.email || "Invitation pending"}</small>
+        {loading ? (
+          <div className="empty-state">Loading team…</div>
+        ) : (
+          members.map((member) => (
+            <div className="member-row" key={member.id}>
+              <div className="avatar avatar-blue">SP</div>
+              <div>
+                <strong>
+                  {member.profiles?.full_name ||
+                    member.profiles?.email ||
+                    "Pending supervisor"}
+                </strong>
+                <small>{member.profiles?.email || "Invitation pending"}</small>
+              </div>
+              <span className="role-tag supervisor">Supervisor</span>
             </div>
-            <span className="role-tag supervisor">Supervisor</span>
-          </div>
-        ))}
+          ))
+        )}
         <div className="soft-callout">
           <ShieldCheck size={18} />
           <span>

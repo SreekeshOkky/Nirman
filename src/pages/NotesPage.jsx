@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Check, FileText, Pencil, Plus, Trash2, X } from "lucide-react";
 import { PageHeading } from "../components/Shared";
 import { api } from "../lib/api";
@@ -9,10 +9,31 @@ const formatDate = (value) =>
         timeStyle: "short",
       }).format(new Date(value))
     : "Recently";
-export default function NotesPage({ notes, setNotes, siteId, token, flash }) {
+export default function NotesPage({ siteId, token, flash }) {
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState("");
+  useEffect(() => {
+    if (!siteId) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .notes(siteId, token)
+      .then((data) => {
+        if (!cancelled) setNotes(data);
+      })
+      .catch((error) => {
+        if (!cancelled) flash(error.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [siteId, token]);
   async function submit(event) {
     event.preventDefault();
     setSaving(true);
@@ -175,7 +196,11 @@ export default function NotesPage({ notes, setNotes, siteId, token, flash }) {
                 </div>
               );
             })}
-            {!notes.length && <div className="empty-state">No notes yet.</div>}
+            {loading ? (
+              <div className="empty-state">Loading notes…</div>
+            ) : !notes.length ? (
+              <div className="empty-state">No notes yet.</div>
+            ) : null}
           </div>
         </div>
       </div>

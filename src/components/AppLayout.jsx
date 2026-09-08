@@ -21,7 +21,6 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import PageSkeleton from "./PageSkeleton";
 import BrandMark from "./BrandMark";
 
 const nav = [
@@ -52,7 +51,6 @@ export default function AppLayout({
   isBuilder,
   profile,
   token,
-  siteLoading,
   ...context
 }) {
   const [mobileNav, setMobileNav] = useState(false);
@@ -183,22 +181,17 @@ export default function AppLayout({
               </div>
             </div>
           )}
-          {siteLoading ? (
-            <PageSkeleton pathname={location.pathname} />
-          ) : (
-            <Outlet
-              context={{
-                site,
-                sites,
-                siteId: selectedSiteId,
-                setSiteId,
-                siteLoading,
-                isBuilder,
-                token,
-                ...context,
-              }}
-            />
-          )}
+          <Outlet
+            context={{
+              site,
+              sites,
+              siteId: selectedSiteId,
+              setSiteId,
+              isBuilder,
+              token,
+              ...context,
+            }}
+          />
         </div>
       </main>
       {mobileNav && (

@@ -1,6 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { Check, Plus } from "lucide-react";
 import Modal from "./Modal";
+
+const forType = (categories, type) =>
+  categories.filter((c) => c.type === type || c.type === "both");
 
 export default function EntryModal({
   categories,
@@ -11,6 +14,22 @@ export default function EntryModal({
 }) {
   const e = editing || {};
   const isEdit = Boolean(editing);
+  const [entryType, setEntryType] = useState(
+    isEdit ? (e.entry_type === "income" ? "income" : "expense") : "expense",
+  );
+  const [categoryId, setCategoryId] = useState(
+    isEdit
+      ? e.category_id || e.categories?.id
+      : forType(categories, "expense")[0]?.id ||
+          forType(categories, "income")[0]?.id ||
+          categories[0]?.id,
+  );
+  const visibleCategories = forType(categories, entryType);
+  function handleTypeChange(value) {
+    setEntryType(value);
+    const first = forType(categories, value)[0];
+    setCategoryId(first?.id || (isEdit ? e.category_id : ""));
+  }
   return (
     <Modal
       title={isEdit ? "Edit ledger entry" : "Add ledger entry"}
@@ -28,7 +47,8 @@ export default function EntryModal({
               type="radio"
               name="entry_type"
               value="expense"
-              defaultChecked={!isEdit || e.entry_type === "expense"}
+              checked={entryType === "expense"}
+              onChange={(event) => handleTypeChange(event.target.value)}
               disabled={isEdit}
             />
             <span>Expense</span>
@@ -38,7 +58,8 @@ export default function EntryModal({
               type="radio"
               name="entry_type"
               value="income"
-              defaultChecked={isEdit && e.entry_type === "income"}
+              checked={entryType === "income"}
+              onChange={(event) => handleTypeChange(event.target.value)}
               disabled={isEdit}
             />
             <span>Income</span>
@@ -67,15 +88,18 @@ export default function EntryModal({
             <label>Category</label>
             <select
               name="category_id"
-              defaultValue={
-                isEdit ? e.category_id || e.categories?.id : categories[0]?.id
-              }
+              value={categoryId}
+              onChange={(event) => setCategoryId(event.target.value)}
             >
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
+              {visibleCategories.length ? (
+                visibleCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))
+              ) : (
+                <option value="">No {entryType} categories</option>
+              )}
             </select>
           </div>
           <div className="field">
@@ -88,6 +112,24 @@ export default function EntryModal({
               }
               required
             />
+          </div>
+        </div>
+        <div className="pay-field">
+          <label className="pay-label">
+            Payment method <span>Optional</span>
+          </label>
+          <div className="type-toggle">
+            {["UPI", "Bank Transfer", "Cash"].map((method) => (
+              <label key={method}>
+                <input
+                  type="radio"
+                  name="payment_method"
+                  value={method}
+                  defaultChecked={isEdit && e.payment_method === method}
+                />
+                <span>{method}</span>
+              </label>
+            ))}
           </div>
         </div>
         <div className="field">

@@ -8,13 +8,8 @@ import {
 import { PageHeading } from "../components/Shared";
 import Modal from "../components/Modal";
 import { api } from "../lib/api";
-export default function CategoriesPage({
-  categories,
-  setCategories,
-  token,
-  flash,
-}) {
-  const [items, setItems] = useState(categories);
+export default function CategoriesPage({ token, flash }) {
+  const [items, setItems] = useState([]);
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -33,7 +28,6 @@ export default function CategoriesPage({
         token,
       );
       setItems((current) => [...current, category]);
-      setCategories((current) => [...current, category]);
       setShow(false);
       flash("Category added");
     } finally {
@@ -43,9 +37,6 @@ export default function CategoriesPage({
   async function disable(category) {
     await api.disableCategory(category.id, token);
     setItems((current) => current.filter((item) => item.id !== category.id));
-    setCategories((current) =>
-      current.filter((item) => item.id !== category.id),
-    );
     flash("Category disabled");
   }
   return (

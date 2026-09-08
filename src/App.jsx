@@ -24,19 +24,6 @@ export default function App() {
   const [sites, setSites] = useState([]);
   const [sitesLoading, setSitesLoading] = useState(true);
   const [siteId, setSiteId] = useState(null);
-  const [siteLoading, setSiteLoading] = useState(true);
-  const [entries, setEntries] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [audit, setAudit] = useState([]);
-  const [notes, setNotes] = useState([]);
-  const [members, setMembers] = useState([]);
-  const [monthly, setMonthly] = useState([]);
-  const [summary, setSummary] = useState({
-    income: 0,
-    expenses: 0,
-    balance: 0,
-    entry_count: 0,
-  });
   const [overview, setOverview] = useState({
     totals: { income: 0, expenses: 0, balance: 0, budget: 0, entry_count: 0 },
     sites: [],
@@ -66,63 +53,15 @@ export default function App() {
       .me(token)
       .then(setProfile)
       .catch((error) => flash(error.message));
-    Promise.all([api.sites(token), api.overview(token)])
-      .then(([data, aggregate]) => {
+    api
+      .sites(token)
+      .then((data) => {
         setSites(data);
         setSiteId((current) => current || data[0]?.id || null);
-        setOverview(aggregate);
       })
       .catch((error) => flash(error.message))
       .finally(() => setSitesLoading(false));
   }, [token]);
-
-  useEffect(() => {
-    if (!token || profile.role !== "builder") return;
-    api
-      .workspaceAudit(token)
-      .then((result) => {
-        if (result.items) setAudit(result.items);
-      })
-      .catch(() => {});
-  }, [token, profile.role]);
-
-  useEffect(() => {
-    if (!siteId) {
-      setSiteLoading(false);
-      return;
-    }
-    setSiteLoading(true);
-    Promise.allSettled([
-      api.categories(siteId, token),
-      api.ledger(siteId, {}, token),
-      api.summary(siteId, token),
-      api.notes(siteId, token),
-      api.monthly(siteId, token),
-      profile.role === "builder"
-        ? api.members(siteId, token)
-        : Promise.resolve([]),
-    ])
-      .then((results) => {
-        const value = (index) =>
-          results[index].status === "fulfilled" ? results[index].value : null;
-        const nextCategories = value(0);
-        const ledger = value(1);
-        const totals = value(2);
-        const siteNotes = value(3);
-        const months = value(4);
-        const siteMembers = value(5);
-        if (nextCategories) setCategories(nextCategories);
-        if (ledger) setEntries(ledger.items);
-        if (totals) setSummary(totals);
-        if (siteNotes) setNotes(siteNotes);
-        if (months) setMonthly(months);
-        if (siteMembers) setMembers(siteMembers);
-        const failed = results.find((result) => result.status === "rejected");
-        if (failed)
-          flash(failed.reason?.message || "Some site data could not be loaded");
-      })
-      .finally(() => setSiteLoading(false));
-  }, [siteId, token, profile.role]);
 
   const flash = (message) => {
     setToast(message);
@@ -141,23 +80,11 @@ export default function App() {
     profile,
     site,
     siteId,
-    siteLoading,
     sites,
     setSites,
     setSiteId,
-    entries,
-    setEntries,
-    categories,
-    setCategories,
-    notes,
-    setNotes,
-    members,
-    setMembers,
-    summary,
-    setSummary,
-    monthly,
     overview,
-    audit,
+    setOverview,
     isBuilder,
     flash,
   };

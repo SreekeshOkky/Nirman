@@ -1,24 +1,39 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Filter, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { PageHeading, EntryRow } from "../components/Shared";
 import EntryModal from "../components/EntryModal";
 import EntryDetailModal from "../components/EntryDetailModal";
 import { api } from "../lib/api";
-export default function LedgerPage({
-  entries,
-  setEntries,
-  categories,
-  setSummary,
-  siteId,
-  token,
-  flash,
-}) {
+export default function LedgerPage({ siteId, token, flash }) {
+  const [entries, setEntries] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
+  useEffect(() => {
+    if (!siteId) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([api.categories(siteId, token), api.ledger(siteId, {}, token)])
+      .then(([cats, ledger]) => {
+        if (cancelled) return;
+        setCategories(cats);
+        setEntries(ledger.items);
+      })
+      .catch((error) => {
+        if (!cancelled) flash(error.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [siteId, token]);
   const filtered = entries.filter(
     (entry) =>
       (!query ||
@@ -28,12 +43,8 @@ export default function LedgerPage({
       (type === "all" || entry.entry_type === type),
   );
   const refresh = async () => {
-    const [ledger, totals] = await Promise.all([
-      api.ledger(siteId, {}, token),
-      api.summary(siteId, token),
-    ]);
+    const ledger = await api.ledger(siteId, {}, token);
     setEntries(ledger.items);
-    setSummary(totals);
   };
   async function create(event) {
     event.preventDefault();
@@ -46,6 +57,7 @@ export default function LedgerPage({
         amount: Number(form.get("amount")),
         entry_date: form.get("entry_date"),
         description: form.get("description") || "",
+        payment_method: form.get("payment_method") || null,
         note: form.get("note") || null,
       };
       const entry = await api.createLedger(siteId, payload, token);
@@ -73,6 +85,7 @@ export default function LedgerPage({
         amount: Number(form.get("amount")),
         entry_date: form.get("entry_date"),
         description: form.get("description") || "",
+        payment_method: form.get("payment_method") || null,
       };
       await api.updateLedger(siteId, editing.id, payload, token);
       await refresh();
@@ -152,9 +165,11 @@ export default function LedgerPage({
               onDelete={remove}
             />
           ))}
-          {!filtered.length && (
+          {loading ? (
+            <div className="empty-state">Loading entries…</div>
+          ) : !filtered.length ? (
             <div className="empty-state">No entries found.</div>
-          )}
+          ) : null}
         </div>
       </div>
       {show && (
