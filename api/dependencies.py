@@ -11,6 +11,7 @@ from supabase import Client, ClientOptions, create_client
 import httpx
 
 from .config import get_settings
+from .features import is_enabled
 
 logger = logging.getLogger("nirmanam.auth")
 
@@ -97,6 +98,17 @@ def require_builder(user: Annotated[CurrentUser, Depends(get_current_user)]) -> 
     if user.role != "builder":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Builder access required")
     return user
+
+
+def require_feature(feature: str):
+    """Dependency factory that rejects requests when a feature flag is off."""
+    def _check() -> None:
+        if not is_enabled(feature):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"The '{feature}' feature is disabled",
+            )
+    return _check
 
 
 def get_site(site_id: str, user: CurrentUser, *, builder_only: bool = False) -> dict:

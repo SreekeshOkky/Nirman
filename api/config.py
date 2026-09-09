@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     supabase_secret_key: str
     frontend_url: str = "http://localhost:5173"
     api_prefix: str = "/api"
+    # JSON object of feature-flag overrides, e.g. '{"audit_log": false}'
+    feature_flags: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 

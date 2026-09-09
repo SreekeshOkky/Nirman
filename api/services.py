@@ -5,6 +5,8 @@ from typing import Any
 
 from supabase import Client
 
+from .features import FEATURE_AUDIT_LOG, is_enabled
+
 
 def record_audit(
     db: Client,
@@ -17,6 +19,8 @@ def record_audit(
     entity_id: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
+    if not is_enabled(FEATURE_AUDIT_LOG):
+        return
     db.table("audit_logs").insert({
         "site_id": site_id,
         "actor_id": actor_id,
