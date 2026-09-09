@@ -4,7 +4,7 @@ import { PageHeading, EntryRow } from "../components/Shared";
 import EntryModal from "../components/EntryModal";
 import EntryDetailModal from "../components/EntryDetailModal";
 import { api } from "../lib/api";
-export default function LedgerPage({ siteId, token, flash }) {
+export default function LedgerPage({ siteId, token, flash, features }) {
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -182,6 +182,7 @@ export default function LedgerPage({ siteId, token, flash }) {
           onSubmit={handleSubmit}
           saving={saving}
           editing={editing}
+          notesEnabled={features?.notes !== false}
         />
       )}
       {viewing && (

@@ -38,6 +38,26 @@ def test_feature_routes_are_registered():
     assert "/api/features" in paths
 
 
+def test_site_status_routes_are_registered():
+    paths = {route.path for route in app.routes}
+
+    assert "/api/sites/{site_id}/archive" in paths
+    assert "/api/sites/{site_id}/activate" in paths
+
+
+def test_archived_sites_are_read_only():
+    from fastapi import HTTPException
+
+    from api.dependencies import ensure_site_active
+
+    with pytest.raises(HTTPException) as exc:
+        ensure_site_active({"status": "archived"})
+    assert exc.value.status_code == 409
+
+    ensure_site_active({"status": "active"})
+    ensure_site_active({"status": "planning"})
+
+
 def test_features_endpoint_defaults_to_all_enabled():
     get_settings.cache_clear()
     get_features.cache_clear()
@@ -60,13 +80,13 @@ def feature_flags_env(monkeypatch):
 
 
 def test_env_json_disables_features_in_api_and_ui_payload(feature_flags_env):
-    feature_flags_env(json.dumps({"audit_log": False, "notes": False}))
+    feature_flags_env(json.dumps({"audit_log": False, "notes": False, "categories": False}))
     client = TestClient(app)
 
     features = client.get("/api/features").json()
     assert features["audit_log"] is False
     assert features["notes"] is False
-    assert features["categories"] is True
+    assert features["categories"] is False
 
     # Feature dependency is declared before auth, so a disabled feature is
     # rejected with 403 even without a bearer token.
@@ -92,4 +112,5 @@ def test_unknown_and_non_boolean_flags_are_ignored(feature_flags_env):
 
     features = get_features()
     assert "made_up_feature" not in features
-    assert features["notes"] is False
+    # Non-boolean values are ignored, so notes keeps its default (enabled).
+    assert features["notes"] is True

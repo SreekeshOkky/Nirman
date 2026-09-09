@@ -1492,6 +1492,81 @@ button {
   color: #44524a;
   font-family: "DM Mono", monospace;
 }
+.site-card-main {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+div.site-card-main {
+  cursor: default;
+}
+.site-card.archived {
+  background: #fafbfa;
+  border-style: dashed;
+}
+.site-card.archived .site-card-main {
+  opacity: 0.72;
+}
+.site-card.archived:hover {
+  border-color: var(--line);
+  box-shadow: none;
+  transform: none;
+}
+.status-tag.archived {
+  background: #f4f6f3;
+  color: #8a938d;
+}
+.site-status-action {
+  margin-top: 14px;
+  width: 100%;
+  justify-content: center;
+  height: 32px;
+  font-size: 11px;
+}
+.site-filter-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.site-filter {
+  width: 210px;
+  margin-bottom: 0;
+  padding: 3px;
+}
+.site-filter label {
+  cursor: pointer;
+}
+.site-filter span {
+  padding: 6px;
+  font-size: 11px;
+}
+.tally-warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #fff0e8;
+  border: 1px solid #f5cfae;
+  color: #a4531f;
+  border-radius: 7px;
+  padding: 11px 13px;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+.tally-warning p {
+  margin: 0;
+  line-height: 1.5;
+}
+.tally-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
 .soft-callout {
   margin-top: 21px;
   padding: 12px 14px;

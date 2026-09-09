@@ -55,11 +55,17 @@ export async function apiRequest(path, options = {}, token) {
 }
 
 export const api = {
+  features: () => apiRequest("/features", {}),
   me: (token) => apiRequest("/me", {}, token),
-  sites: (token) => apiRequest("/sites", {}, token),
+  sites: (token, params) =>
+    apiRequest(`/sites?${new URLSearchParams(params || {})}`, {}, token),
   overview: (token) => apiRequest("/overview", {}, token),
   createSite: (data, token) =>
     apiRequest("/sites", { method: "POST", body: JSON.stringify(data) }, token),
+  archiveSite: (siteId, token) =>
+    apiRequest(`/sites/${siteId}/archive`, { method: "POST" }, token),
+  activateSite: (siteId, token) =>
+    apiRequest(`/sites/${siteId}/activate`, { method: "POST" }, token),
   categories: (siteId, token) =>
     apiRequest(`/sites/${siteId}/categories`, {}, token),
   myCategories: (token) => apiRequest("/categories", {}, token),

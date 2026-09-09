@@ -12,12 +12,17 @@ from fastapi.encoders import jsonable_encoder
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 
-from .dependencies import Builder, User, ensure_site_access, get_admin_client, require_feature
+from .dependencies import Builder, User, ensure_site_access, ensure_site_active, get_admin_client, require_feature
 from .features import FEATURE_AUDIT_LOG, FEATURE_CATEGORIES, FEATURE_NOTES, get_features, is_enabled
 from .schemas import CategoryCreate, CategoryUpdate, InvitationCreate, LedgerCreate, LedgerUpdate, NoteCreate, NoteUpdate, SiteCreate, SiteUpdate
 from .services import record_audit
 
 router = APIRouter()
+# Feature-gated sub-routers: their dependencies run before endpoint-level auth,
+# so a disabled feature is rejected even without a valid token.
+audit_router = APIRouter(dependencies=[Depends(require_feature(FEATURE_AUDIT_LOG))])
+notes_router = APIRouter(dependencies=[Depends(require_feature(FEATURE_NOTES))])
+categories_router = APIRouter(dependencies=[Depends(require_feature(FEATURE_CATEGORIES))])
 
 
 @router.get("/features")
@@ -32,14 +37,21 @@ def read_me(user: User):
 
 
 @router.get("/sites")
-def list_sites(user: User):
+def list_sites(user: User, include_archived: bool = Query(default=False)):
+    """Active sites by default; archived (inactive) ones stay hidden unless asked for."""
     db = get_admin_client()
-    owned = db.table("sites").select("*").eq("owner_id", user.id).execute().data or []
+    query = db.table("sites").select("*").eq("owner_id", user.id)
+    if not include_archived:
+        query = query.neq("status", "archived")
+    owned = query.execute().data or []
     member_rows = db.table("site_members").select("site_id").eq("user_id", user.id).execute().data or []
     member_ids = [row["site_id"] for row in member_rows]
     invited = []
     if member_ids:
-        invited = db.table("sites").select("*").in_("id", member_ids).execute().data or []
+        invited_query = db.table("sites").select("*").in_("id", member_ids)
+        if not include_archived:
+            invited_query = invited_query.neq("status", "archived")
+        invited = invited_query.execute().data or []
     seen = {site["id"] for site in owned}
     return owned + [site for site in invited if site["id"] not in seen]
 
@@ -111,13 +123,26 @@ def update_site(site_id: str, payload: SiteUpdate, user: Builder):
 def archive_site(site_id: str, user: Builder):
     db = get_admin_client()
     site = ensure_site_access(site_id, user, builder_only=True)
+    if site["status"] == "archived":
+        raise HTTPException(status_code=409, detail="This site is already inactive")
     updated = db.table("sites").update({"status": "archived"}).eq("id", site_id).execute().data[0]
     record_audit(db, site_id=site_id, actor_id=user.id, action="site_archived", entity_type="site", entity_id=site_id, description=f"Archived site {site['name']}")
     return updated
 
 
-@router.get("/categories")
-def list_my_categories(user: User, _: None = Depends(require_feature(FEATURE_CATEGORIES))):
+@router.post("/sites/{site_id}/activate")
+def activate_site(site_id: str, user: Builder):
+    db = get_admin_client()
+    site = ensure_site_access(site_id, user, builder_only=True)
+    if site["status"] != "archived":
+        raise HTTPException(status_code=409, detail="Only inactive sites can be reactivated")
+    updated = db.table("sites").update({"status": "active"}).eq("id", site_id).execute().data[0]
+    record_audit(db, site_id=site_id, actor_id=user.id, action="site_activated", entity_type="site", entity_id=site_id, description=f"Reactivated site {site['name']}")
+    return updated
+
+
+@categories_router.get("/categories")
+def list_my_categories(user: User):
     return (
         get_admin_client()
         .table("categories")
@@ -132,8 +157,8 @@ def list_my_categories(user: User, _: None = Depends(require_feature(FEATURE_CAT
     )
 
 
-@router.post("/categories", status_code=status.HTTP_201_CREATED)
-def create_my_category(payload: CategoryCreate, user: User, _: None = Depends(require_feature(FEATURE_CATEGORIES))):
+@categories_router.post("/categories", status_code=status.HTTP_201_CREATED)
+def create_my_category(payload: CategoryCreate, user: User):
     db = get_admin_client()
     existing = (
         db.table("categories")
@@ -150,8 +175,8 @@ def create_my_category(payload: CategoryCreate, user: User, _: None = Depends(re
     return db.table("categories").insert({**payload.model_dump(), "created_by": user.id}).execute().data[0]
 
 
-@router.patch("/categories/{category_id}")
-def update_my_category(category_id: str, payload: CategoryUpdate, user: User, _: None = Depends(require_feature(FEATURE_CATEGORIES))):
+@categories_router.patch("/categories/{category_id}")
+def update_my_category(category_id: str, payload: CategoryUpdate, user: User):
     db = get_admin_client()
     current = (
         db.table("categories")
@@ -186,8 +211,8 @@ def update_my_category(category_id: str, payload: CategoryUpdate, user: User, _:
     return db.table("categories").update(changes).eq("id", category_id).execute().data[0]
 
 
-@router.post("/categories/{category_id}/disable")
-def disable_my_category(category_id: str, user: User, _: None = Depends(require_feature(FEATURE_CATEGORIES))):
+@categories_router.post("/categories/{category_id}/disable")
+def disable_my_category(category_id: str, user: User):
     db = get_admin_client()
     current = (
         db.table("categories")
@@ -238,7 +263,8 @@ def list_members(site_id: str, user: Builder):
 
 @router.post("/sites/{site_id}/members/invite", status_code=status.HTTP_201_CREATED)
 def invite_member(site_id: str, payload: InvitationCreate, user: Builder):
-    ensure_site_access(site_id, user, builder_only=True)
+    site = ensure_site_access(site_id, user, builder_only=True)
+    ensure_site_active(site)
     db = get_admin_client()
     site = db.table("sites").select("name").eq("id", site_id).single().execute().data
     existing = db.table("invitations").select("id").eq("site_id", site_id).eq("email", payload.email.lower()).eq("status", "pending").maybe_single().execute().data
@@ -333,6 +359,7 @@ def _validate_category(db, site: dict, category_id: str, entry_type: str) -> dic
 @router.post("/sites/{site_id}/ledger", status_code=status.HTTP_201_CREATED)
 def create_ledger_entry(site_id: str, payload: LedgerCreate, user: User):
     site = ensure_site_access(site_id, user)
+    ensure_site_active(site)
     db = get_admin_client()
     category = _validate_category(db, site, str(payload.category_id), payload.entry_type)
     row = payload.model_dump(mode="json", exclude={"note"})
@@ -362,6 +389,7 @@ def read_ledger_entry(site_id: str, entry_id: str, user: User):
 @router.patch("/sites/{site_id}/ledger/{entry_id}")
 def update_ledger_entry(site_id: str, entry_id: str, payload: LedgerUpdate, user: Builder):
     site = ensure_site_access(site_id, user, builder_only=True)
+    ensure_site_active(site)
     db = get_admin_client()
     current_response = db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null").maybe_single().execute()
     current = current_response.data
@@ -380,7 +408,8 @@ def update_ledger_entry(site_id: str, entry_id: str, payload: LedgerUpdate, user
 
 @router.delete("/sites/{site_id}/ledger/{entry_id}")
 def delete_ledger_entry(site_id: str, entry_id: str, user: Builder):
-    ensure_site_access(site_id, user, builder_only=True)
+    site = ensure_site_access(site_id, user, builder_only=True)
+    ensure_site_active(site)
     db = get_admin_client()
     current = db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null").maybe_single().execute().data
     if not current:
@@ -390,9 +419,9 @@ def delete_ledger_entry(site_id: str, entry_id: str, user: Builder):
     return {"id": updated["id"], "deleted": True}
 
 
-@router.post("/sites/{site_id}/notes", status_code=status.HTTP_201_CREATED)
-def create_site_note(site_id: str, payload: NoteCreate, user: User, _: None = Depends(require_feature(FEATURE_NOTES))):
-    ensure_site_access(site_id, user)
+@notes_router.post("/sites/{site_id}/notes", status_code=status.HTTP_201_CREATED)
+def create_site_note(site_id: str, payload: NoteCreate, user: User):
+    ensure_site_active(ensure_site_access(site_id, user))
     db = get_admin_client()
     note = db.table("notes").insert({"site_id": site_id, "created_by": user.id, "content": payload.content}).execute().data[0]
     note = db.table("notes").select("*, profiles!notes_created_by_fkey(full_name,email)").eq("id", note["id"]).single().execute().data
@@ -400,8 +429,8 @@ def create_site_note(site_id: str, payload: NoteCreate, user: User, _: None = De
     return note
 
 
-@router.get("/sites/{site_id}/notes")
-def list_site_notes(site_id: str, user: User, _: None = Depends(require_feature(FEATURE_NOTES))):
+@notes_router.get("/sites/{site_id}/notes")
+def list_site_notes(site_id: str, user: User):
     ensure_site_access(site_id, user)
     return get_admin_client().table("notes").select("*, ledger_entries(description,entry_type,amount), profiles!notes_created_by_fkey(full_name,email)").eq("site_id", site_id).order("created_at", desc=True).execute().data or []
 
@@ -415,9 +444,9 @@ def _get_standalone_note(db, site_id: str, note_id: str, user: User) -> dict:
     return note
 
 
-@router.patch("/sites/{site_id}/notes/{note_id}")
-def update_site_note(site_id: str, note_id: str, payload: NoteUpdate, user: User, _: None = Depends(require_feature(FEATURE_NOTES))):
-    ensure_site_access(site_id, user)
+@notes_router.patch("/sites/{site_id}/notes/{note_id}")
+def update_site_note(site_id: str, note_id: str, payload: NoteUpdate, user: User):
+    ensure_site_active(ensure_site_access(site_id, user))
     db = get_admin_client()
     _get_standalone_note(db, site_id, note_id, user)
     updated = db.table("notes").update({"content": payload.content}).eq("id", note_id).execute().data[0]
@@ -426,9 +455,9 @@ def update_site_note(site_id: str, note_id: str, payload: NoteUpdate, user: User
     return updated
 
 
-@router.delete("/sites/{site_id}/notes/{note_id}")
-def delete_site_note(site_id: str, note_id: str, user: User, _: None = Depends(require_feature(FEATURE_NOTES))):
-    ensure_site_access(site_id, user)
+@notes_router.delete("/sites/{site_id}/notes/{note_id}")
+def delete_site_note(site_id: str, note_id: str, user: User):
+    ensure_site_active(ensure_site_access(site_id, user))
     db = get_admin_client()
     _get_standalone_note(db, site_id, note_id, user)
     db.table("notes").delete().eq("id", note_id).execute()
@@ -528,7 +557,7 @@ def export_report(site_id: str, user: User, month: str | None = Query(default=No
 
 @router.post("/sites/{site_id}/attachments", status_code=status.HTTP_201_CREATED)
 def upload_attachment(site_id: str, user: User, file: UploadFile = File(...), ledger_entry_id: str | None = None):
-    ensure_site_access(site_id, user)
+    ensure_site_active(ensure_site_access(site_id, user))
     if file.content_type not in {"image/jpeg", "image/png", "application/pdf"}:
         raise HTTPException(status_code=415, detail="Only JPG, PNG, and PDF receipts are supported")
     content = file.file.read()
@@ -543,8 +572,8 @@ def upload_attachment(site_id: str, user: User, file: UploadFile = File(...), le
     return {**attachment, "signed_url": signed.get("signedURL") or signed.get("signedUrl")}
 
 
-@router.get("/audit-logs")
-def workspace_audit_logs(user: Builder, _: None = Depends(require_feature(FEATURE_AUDIT_LOG)), page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=100)):
+@audit_router.get("/audit-logs")
+def workspace_audit_logs(user: Builder, page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=100)):
     """Audit history across every site the builder can access."""
     db = get_admin_client()
     owned = db.table("sites").select("id").eq("owner_id", user.id).execute().data or []
@@ -559,9 +588,14 @@ def workspace_audit_logs(user: Builder, _: None = Depends(require_feature(FEATUR
     return {"items": response.data or [], "page": page, "page_size": page_size, "total": response.count or 0}
 
 
-@router.get("/sites/{site_id}/audit-logs")
-def list_audit_logs(site_id: str, user: Builder, _: None = Depends(require_feature(FEATURE_AUDIT_LOG)), page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=100)):
+@audit_router.get("/sites/{site_id}/audit-logs")
+def list_audit_logs(site_id: str, user: Builder, page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=100)):
     ensure_site_access(site_id, user, builder_only=True)
     start = (page - 1) * page_size
     response = get_admin_client().table("audit_logs").select("*, profiles(full_name,email)", count="exact").eq("site_id", site_id).order("created_at", desc=True).range(start, start + page_size - 1).execute()
     return {"items": response.data or [], "page": page, "page_size": page_size, "total": response.count or 0}
+
+
+router.include_router(audit_router)
+router.include_router(notes_router)
+router.include_router(categories_router)

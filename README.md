@@ -113,6 +113,17 @@ SUPABASE_SECRET_KEY=YOUR_SERVER_ONLY_SUPABASE_SECRET_KEY
 FRONTEND_URL=http://localhost:5173
 ```
 
+### Feature flags
+
+Every feature ships enabled. On a deployment, set `FEATURE_FLAGS` to a JSON
+object to turn features off; the flags are enforced by the API and the UI hides
+the disabled features too. Features that can be flagged: `audit_log`,
+`categories` (adding/managing your own categories), and `notes`.
+
+```bash
+FEATURE_FLAGS={"audit_log": false, "notes": false}
+```
+
 Never expose `SUPABASE_SECRET_KEY` to the browser. Only variables prefixed with `VITE_` are bundled into the frontend.
 
 Get the publishable/anon and secret keys from **Supabase Dashboard > Project Settings > API** or with:

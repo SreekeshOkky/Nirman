@@ -141,5 +141,14 @@ def ensure_site_access(site_id: str, user: CurrentUser, *, builder_only: bool = 
     return site
 
 
+def ensure_site_active(site: dict) -> None:
+    """Archived (inactive) sites are read-only until reactivated."""
+    if site.get("status") == "archived":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This site is inactive and read-only. Reactivate it to make changes.",
+        )
+
+
 User = Annotated[CurrentUser, Depends(get_current_user)]
 Builder = Annotated[CurrentUser, Depends(require_builder)]

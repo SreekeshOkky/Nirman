@@ -11,6 +11,7 @@ export default function EntryModal({
   onSubmit,
   saving,
   editing,
+  notesEnabled = true,
 }) {
   const e = editing || {};
   const isEdit = Boolean(editing);
@@ -144,16 +145,18 @@ export default function EntryModal({
         </div>
         {!isEdit && (
           <>
-            <div className="field">
-              <label>
-                Note <span>Optional</span>
-              </label>
-              <textarea
-                name="note"
-                rows="2"
-                placeholder="Add context for your team..."
-              />
-            </div>
+            {notesEnabled && (
+              <div className="field">
+                <label>
+                  Note <span>Optional</span>
+                </label>
+                <textarea
+                  name="note"
+                  rows="2"
+                  placeholder="Add context for your team..."
+                />
+              </div>
+            )}
             <div className="field">
               <label>
                 Receipt <span>JPG, PNG or PDF up to 10MB</span>

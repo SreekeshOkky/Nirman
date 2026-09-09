@@ -21,6 +21,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { DEFAULT_FEATURES } from "../lib/features";
 import BrandMark from "./BrandMark";
 
 const nav = [
@@ -51,24 +52,36 @@ export default function AppLayout({
   isBuilder,
   profile,
   token,
+  features = DEFAULT_FEATURES,
   ...context
 }) {
   const [mobileNav, setMobileNav] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const items = isBuilder
-    ? [
-        ...nav,
-        { label: "Team & access", to: "/team", icon: Users },
-        { label: "Categories", to: "/categories", icon: Settings2 },
-        { label: "Activity log", to: "/activity", icon: ClipboardList },
-      ]
-    : nav;
+  const enabled = (flag) => features?.[flag] !== false;
+  const items = [
+    ...nav.filter((item) => item.to !== "/notes" || enabled("notes")),
+    ...(isBuilder
+      ? [
+          { label: "Team & access", to: "/team", icon: Users },
+          ...(enabled("categories")
+            ? [{ label: "Categories", to: "/categories", icon: Settings2 }]
+            : []),
+          ...(enabled("audit_log")
+            ? [{ label: "Activity log", to: "/activity", icon: ClipboardList }]
+            : []),
+        ]
+      : []),
+  ];
   const signOut = async () => {
     await supabase?.auth.signOut();
     navigate("/");
   };
-  const selectedSiteId = siteId || sites[0]?.id || "";
+  const activeSites = sites.filter((item) => item.status !== "archived");
+  const selectedSiteId =
+    activeSites.find((item) => item.id === siteId)?.id ||
+    activeSites[0]?.id ||
+    "";
   const currentPage =
     pageLabels.find(({ to }) =>
       to === "/" ? location.pathname === "/" : location.pathname.startsWith(to),
@@ -101,7 +114,7 @@ export default function AppLayout({
               <Icon size={18} strokeWidth={1.8} />
               <span>{label}</span>
               {label === "Sites" && (
-                <span className="nav-count">{sites.length}</span>
+                <span className="nav-count">{activeSites.length}</span>
               )}
             </NavLink>
           ))}
@@ -166,10 +179,12 @@ export default function AppLayout({
                   aria-label="Select site"
                   value={selectedSiteId}
                   onChange={(event) => setSiteId(event.target.value)}
-                  disabled={!sites.length}
+                  disabled={!activeSites.length}
                 >
-                  {!sites.length && <option value="">No sites yet</option>}
-                  {sites.map((item) => (
+                  {!activeSites.length && (
+                    <option value="">No active sites</option>
+                  )}
+                  {activeSites.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>
