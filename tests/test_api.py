@@ -58,7 +58,8 @@ def test_archived_sites_are_read_only():
     ensure_site_active({"status": "planning"})
 
 
-def test_features_endpoint_defaults_to_all_enabled():
+def test_features_endpoint_defaults_to_all_enabled(monkeypatch):
+    monkeypatch.setenv("FEATURE_FLAGS", "")
     get_settings.cache_clear()
     get_features.cache_clear()
     response = TestClient(app).get("/api/features")
@@ -80,13 +81,18 @@ def feature_flags_env(monkeypatch):
 
 
 def test_env_json_disables_features_in_api_and_ui_payload(feature_flags_env):
-    feature_flags_env(json.dumps({"audit_log": False, "notes": False, "categories": False}))
+    feature_flags_env(
+        json.dumps(
+            {"audit_log": False, "notes": False, "categories": False, "signup": False}
+        )
+    )
     client = TestClient(app)
 
     features = client.get("/api/features").json()
     assert features["audit_log"] is False
     assert features["notes"] is False
     assert features["categories"] is False
+    assert features["signup"] is False
 
     # Feature dependency is declared before auth, so a disabled feature is
     # rejected with 403 even without a bearer token.

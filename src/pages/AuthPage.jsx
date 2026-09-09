@@ -1,12 +1,17 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { brand } from "../lib/brand";
+import { DEFAULT_FEATURES } from "../lib/features";
 import BrandMark from "../components/BrandMark";
 
-export default function AuthPage({ configurationMissing = false }) {
+export default function AuthPage({
+  configurationMissing = false,
+  features = DEFAULT_FEATURES,
+}) {
   const [mode, setMode] = useState("signin");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const signupEnabled = features.signup !== false;
   async function submit(event) {
     event.preventDefault();
     if (!supabase) return;
@@ -120,7 +125,20 @@ export default function AuthPage({ configurationMissing = false }) {
                 </button>
               </form>
               {message && <p className="auth-message">{message}</p>}
-              {/* <p className="auth-switch">{mode === 'signin' ? 'New to Nirmanam?' : 'Already have an account?'} <button onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>{mode === 'signin' ? 'Create an account' : 'Sign in'}</button></p> */}
+              {signupEnabled && (
+                <p className="auth-switch">
+                  {mode === "signin"
+                    ? `New to ${brand.name}?`
+                    : "Already have an account?"}{" "}
+                  <button
+                    onClick={() =>
+                      setMode(mode === "signin" ? "signup" : "signin")
+                    }
+                  >
+                    {mode === "signin" ? "Create an account" : "Sign in"}
+                  </button>
+                </p>
+              )}
             </>
           )}
         </div>

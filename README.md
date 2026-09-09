@@ -132,11 +132,17 @@ VITE_THEME_ACCENT=#1a73e8
 Every feature ships enabled. On a deployment, set `FEATURE_FLAGS` to a JSON
 object to turn features off; the flags are enforced by the API and the UI hides
 the disabled features too. Features that can be flagged: `audit_log`,
-`categories` (adding/managing your own categories), and `notes`.
+`categories` (adding/managing your own categories), `notes`, and `signup`.
+Restart the API after changing it — the frontend picks up the flags at runtime
+from `GET /features`.
 
 ```bash
-FEATURE_FLAGS={"audit_log": false, "notes": false}
+FEATURE_FLAGS={"audit_log": false, "notes": false, "signup": false}
 ```
+
+Note: account sign-up is handled by Supabase Auth (not this API), so
+`signup` only hides the "Create an account" entry point. To hard-block new
+registrations, also disable "Allow new users to sign up" in Supabase Auth.
 
 Never expose `SUPABASE_SECRET_KEY` to the browser. Only variables prefixed with `VITE_` are bundled into the frontend.
 

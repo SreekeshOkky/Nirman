@@ -2,17 +2,21 @@ export const DEFAULT_FEATURES = {
   audit_log: true,
   categories: true,
   notes: true,
+  signup: true,
 };
 
 export async function loadFeatures(baseUrl) {
+  let serverFlags = {};
   try {
     const response = await fetch(`${baseUrl}/features`);
-    if (!response.ok) return { ...DEFAULT_FEATURES };
-    const data = await response.json();
-    return { ...DEFAULT_FEATURES, ...data };
+    if (response.ok) {
+      const data = await response.json();
+      if (data && typeof data === "object") serverFlags = data;
+    }
   } catch {
-    return { ...DEFAULT_FEATURES };
+    // API unreachable: keep the default flags.
   }
+  return { ...DEFAULT_FEATURES, ...serverFlags };
 }
 
 export function isFeatureEnabled(features, name) {

@@ -83,10 +83,10 @@ export default function App() {
   const site = activeSites.find((item) => item.id === siteId) || null;
   const isBuilder = profile.role === "builder";
 
-  if (!supabase) return <AuthPage configurationMissing />;
+  if (!supabase) return <AuthPage configurationMissing features={features} />;
   if (authLoading)
     return <div className="auth-loading">Loading {brand.name}...</div>;
-  if (!session) return <AuthPage />;
+  if (!session) return <AuthPage features={features} />;
 
   const context = {
     token,

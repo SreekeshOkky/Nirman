@@ -11,6 +11,7 @@ logger = logging.getLogger("nirmanam.features")
 FEATURE_AUDIT_LOG = "audit_log"
 FEATURE_CATEGORIES = "categories"
 FEATURE_NOTES = "notes"
+FEATURE_SIGNUP = "signup"
 
 # Every feature ships enabled. A deployment can switch any of them off by
 # pointing the FEATURE_FLAGS environment variable at a JSON object, e.g.
@@ -19,6 +20,7 @@ DEFAULT_FEATURES: dict[str, bool] = {
     FEATURE_AUDIT_LOG: True,
     FEATURE_CATEGORIES: True,
     FEATURE_NOTES: True,
+    FEATURE_SIGNUP: True,
 }
 
 
