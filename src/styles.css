@@ -413,7 +413,7 @@ button {
   outline: 0;
   background: transparent;
   color: #58645d;
-  font-size: 11px;
+  font-size: 12px;
   padding-right: 13px;
 }
 .period-control > svg:last-child {
@@ -509,13 +509,13 @@ button {
 }
 .card-head p {
   color: #8a938d;
-  font-size: 11px;
+  font-size: 12px;
   margin: 0;
 }
 .card-export {
   height: 30px;
   padding: 0 11px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .monthly-actions {
   display: flex;
@@ -527,7 +527,7 @@ button {
   border-radius: 6px;
   background: #fff;
   padding: 6px 9px;
-  font-size: 11px;
+  font-size: 12px;
   font-family: "DM Mono", monospace;
   color: #59655e;
 }
@@ -729,7 +729,7 @@ button {
   border: 0;
   outline: 0;
   width: 100%;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink);
   background: transparent;
 }
@@ -802,14 +802,14 @@ button {
   color: #329267;
 }
 .entry-info strong {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   display: block;
 }
 .entry-info span {
   display: block;
   color: #9aa29d;
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
@@ -819,7 +819,7 @@ button {
   display: inline-block;
   font-style: normal;
   font-family: "DM Mono", monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.4px;
   color: #5f6a63;
   background: #f0f3ee;
@@ -830,18 +830,18 @@ button {
 }
 .entry-date {
   color: #8e9891;
-  font-size: 10px;
+  font-size: 12px;
 }
 .entry-person {
   display: flex;
   align-items: center;
   gap: 7px;
   color: #727d76;
-  font-size: 10px;
+  font-size: 12px;
 }
 .entry-amount {
   font-family: "DM Mono", monospace;
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
   min-width: 48px;
 }
@@ -1378,7 +1378,7 @@ button {
     gap: 8px;
   }
   .entry-amount {
-    font-size: 10px;
+    font-size: 12px;
   }
   .entry-info span {
     max-width: 115px;
@@ -1728,7 +1728,7 @@ div.site-card-main {
 }
 .report-hero > p:not(.eyebrow) {
   color: #b1c5bb;
-  font-size: 11px;
+  font-size: 12px;
   margin: 0;
 }
 .report-big-number {
@@ -1738,7 +1738,7 @@ div.site-card-main {
 }
 .report-big-number span {
   font-family: "DM Sans";
-  font-size: 10px;
+  font-size: 12px;
   color: #aac1b6;
   margin-left: 6px;
 }
@@ -1750,7 +1750,7 @@ div.site-card-main {
 }
 .report-stat span,
 .report-stat small {
-  font-size: 11px;
+  font-size: 12px;
   color: #89938c;
 }
 .report-stat strong {
@@ -1777,14 +1777,14 @@ div.site-card-main {
 .category-bar > div:first-child {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: #647169;
   margin-bottom: 6px;
 }
 .category-bar strong {
   font-family: "DM Mono", monospace;
   color: #44524a;
-  font-size: 10px;
+  font-size: 12px;
 }
 .bar-line {
   height: 7px;
@@ -2054,7 +2054,7 @@ div.site-card-main {
   padding: 13px 0;
   border-bottom: 1px solid #eef1ed;
   font-family: "DM Mono", monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: #7d8981;
 }
 .monthly-row strong {
