@@ -23,6 +23,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { DEFAULT_FEATURES } from "../lib/features";
 import { brand } from "../lib/brand";
+import { getInitials } from "./Shared";
 import BrandMark from "./BrandMark";
 
 const nav = [
@@ -135,7 +136,7 @@ export default function AppLayout({
           </button>
         </div>
         <div className="sidebar-user">
-          <div className="avatar avatar-dark">RK</div>
+          <div className="avatar avatar-dark">{getInitials(profile?.full_name) || "RK"}</div>
           <div>
             <strong>{profile?.full_name || "Account"}</strong>
             <span>{profile?.role || "user"} account</span>
@@ -158,7 +159,7 @@ export default function AppLayout({
               <Bell size={18} />
               <span className="notification-dot" />
             </button>
-            <div className="top-avatar">RK</div>
+            <div className="top-avatar">{getInitials(profile?.full_name) || "RK"}</div>
           </div>
         </header>
         <div className="page-wrap">

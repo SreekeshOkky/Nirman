@@ -18,10 +18,7 @@ import SettingsPage from "./pages/SettingsPage";
 
 export default function App() {
   const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState({
-    full_name: "Ravi Kumar",
-    role: "builder",
-  });
+  const [profile, setProfile] = useState({ full_name: "", role: "" });
   const [authLoading, setAuthLoading] = useState(Boolean(supabase));
   const [features, setFeatures] = useState(DEFAULT_FEATURES);
   const [sites, setSites] = useState([]);
@@ -91,6 +88,7 @@ export default function App() {
   const context = {
     token,
     profile,
+    setProfile,
     site,
     siteId,
     sites,

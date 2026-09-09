@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { ShieldCheck, UserPlus } from "lucide-react";
-import { PageHeading } from "../components/Shared";
+import { PageHeading, getInitials } from "../components/Shared";
 import InviteModal from "../components/InviteModal";
 import { api } from "../lib/api";
-export default function TeamPage({ siteId, token, flash }) {
+export default function TeamPage({ siteId, token, flash, profile }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
@@ -59,9 +59,11 @@ export default function TeamPage({ siteId, token, flash }) {
           </div>
         </div>
         <div className="member-row">
-          <div className="avatar avatar-dark">RK</div>
+          <div className="avatar avatar-dark">
+            {getInitials(profile?.full_name) || "RK"}
+          </div>
           <div>
-            <strong>Site owner</strong>
+            <strong>{profile?.full_name || "Site owner"}</strong>
             <small>Builder</small>
           </div>
           <span className="role-tag">Full access</span>
@@ -71,7 +73,12 @@ export default function TeamPage({ siteId, token, flash }) {
         ) : (
           members.map((member) => (
             <div className="member-row" key={member.id}>
-              <div className="avatar avatar-blue">SP</div>
+              <div className="avatar avatar-blue">
+                {getInitials(member.profiles?.full_name) ||
+                  (member.profiles?.email
+                    ? member.profiles.email[0].toUpperCase()
+                    : "?")}
+              </div>
               <div>
                 <strong>
                   {member.profiles?.full_name ||

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { PageHeading } from "../components/Shared";
+import { PageHeading, getInitials } from "../components/Shared";
 import { api } from "../lib/api";
 export default function ActivityPage({ token }) {
   const [audit, setAudit] = useState([]);
@@ -35,7 +35,11 @@ export default function ActivityPage({ token }) {
         <div className="activity-list">
           {audit.map((item) => (
             <div className="activity-item" key={item.id}>
-              <div className="avatar avatar-dark">RK</div>
+              <div className="avatar avatar-dark">
+                {getInitials(item.profiles?.full_name) ||
+                  getInitials(item.actor) ||
+                  "RK"}
+              </div>
               <div className="activity-copy">
                 <div>
                   <strong>{item.action}</strong>

@@ -8,6 +8,11 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class ProfileUpdate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=120)
+    model_config = {"extra": "forbid"}
+
+
 class SiteCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = None

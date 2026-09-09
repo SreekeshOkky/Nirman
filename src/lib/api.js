@@ -57,6 +57,8 @@ export async function apiRequest(path, options = {}, token) {
 export const api = {
   features: () => apiRequest("/features", {}),
   me: (token) => apiRequest("/me", {}, token),
+  updateMe: (data, token) =>
+    apiRequest("/me", { method: "PATCH", body: JSON.stringify(data) }, token),
   sites: (token, params) =>
     apiRequest(`/sites?${new URLSearchParams(params || {})}`, {}, token),
   overview: (token) => apiRequest("/overview", {}, token),

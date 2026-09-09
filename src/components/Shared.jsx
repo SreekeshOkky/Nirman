@@ -2,6 +2,14 @@ import React from "react";
 import { ArrowDownLeft, ArrowUpRight, Eye, Pencil, Trash2 } from "lucide-react";
 import { brand } from "../lib/brand";
 
+export const getInitials = (name) => {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : parts[0].substring(0, 2).toUpperCase();
+};
+
 export const money = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
 export function EntryRow({ entry, onView, onEdit, onDelete }) {
@@ -31,7 +39,7 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
       <div className="entry-date">{entry.entry_date}</div>
       <div className="entry-person">
         <div className={`avatar avatar-${entry.tone || "dark"}`}>
-          {entry.initials || "RK"}
+          {entry.initials || getInitials(entry.person) || "RK"}
         </div>
         <span>{entry.person || "You"}</span>
       </div>

@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 
 from .dependencies import Builder, User, ensure_site_access, ensure_site_active, get_admin_client, require_feature
 from .features import FEATURE_AUDIT_LOG, FEATURE_CATEGORIES, FEATURE_NOTES, get_features, is_enabled
-from .schemas import CategoryCreate, CategoryUpdate, InvitationCreate, LedgerCreate, LedgerUpdate, NoteCreate, NoteUpdate, SiteCreate, SiteUpdate
+from .schemas import CategoryCreate, CategoryUpdate, InvitationCreate, LedgerCreate, LedgerUpdate, NoteCreate, NoteUpdate, ProfileUpdate, SiteCreate, SiteUpdate
 from .services import record_audit
 
 router = APIRouter()
@@ -34,6 +34,25 @@ def list_features():
 @router.get("/me")
 def read_me(user: User):
     return {"id": user.id, "email": user.email, "full_name": user.full_name, "role": user.role}
+
+
+@router.patch("/me")
+def update_me(update: ProfileUpdate, user: User):
+    """Let users rename themselves. Role is immutable and never accepted here."""
+    db = get_admin_client()
+    updated = (
+        db.table("profiles")
+        .update({"full_name": update.full_name.strip()})
+        .eq("id", user.id)
+        .execute()
+    )
+    profile = (updated.data or [{}])[0]
+    return {
+        "id": profile.get("id"),
+        "email": profile.get("email") or "",
+        "full_name": profile.get("full_name") or "",
+        "role": profile.get("role") or "",
+    }
 
 
 @router.get("/sites")

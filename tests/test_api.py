@@ -45,6 +45,13 @@ def test_site_status_routes_are_registered():
     assert "/api/sites/{site_id}/activate" in paths
 
 
+def test_profile_update_route_is_registered():
+    paths = {route.path for route in app.routes}
+
+    assert "/api/me" in paths
+    assert any(route.path == "/api/me" and "PATCH" in route.methods for route in app.routes)
+
+
 def test_archived_sites_are_read_only():
     from fastapi import HTTPException
 

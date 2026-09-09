@@ -1071,6 +1071,13 @@ button {
 .field textarea {
   resize: vertical;
 }
+.field input:disabled,
+.field select:disabled {
+  background: #f2f4f1;
+  color: #98a19b;
+  cursor: not-allowed;
+  border-color: #e3e8e2;
+}
 .amount-input {
   display: flex;
   border: 1px solid #dfe5df;
@@ -1823,6 +1830,7 @@ div.site-card-main {
   padding: 11px;
   border-radius: 6px;
   font-size: 11px;
+  margin-top: 16px;
 }
 .auth-shell {
   min-height: 100vh;
