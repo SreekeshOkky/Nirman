@@ -11,6 +11,7 @@ Nirmanam is a construction-site ledger for builders and supervisors. Builders ca
 - FastAPI and Pydantic
 - Vercel for frontend and Python serverless API deployment
 - Recharts-compatible chart UI built into the frontend
+- Installable PWA (manifest + service worker via `vite-plugin-pwa`)
 
 ## Requirements
 

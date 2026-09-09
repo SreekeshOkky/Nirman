@@ -3,6 +3,9 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.py" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!assets/|icons/|manifest\\.webmanifest|sw\\.js|workbox-).*)",
+      "destination": "/index.html"
+    }
   ]
 }
