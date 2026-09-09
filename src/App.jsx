@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { supabase } from "./lib/supabase";
 import { api } from "./lib/api";
 import { DEFAULT_FEATURES, loadFeatures } from "./lib/features";
+import { brand } from "./lib/brand";
 import AppLayout from "./components/AppLayout";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -84,7 +85,7 @@ export default function App() {
 
   if (!supabase) return <AuthPage configurationMissing />;
   if (authLoading)
-    return <div className="auth-loading">Loading Nirmanam...</div>;
+    return <div className="auth-loading">Loading {brand.name}...</div>;
   if (!session) return <AuthPage />;
 
   const context = {

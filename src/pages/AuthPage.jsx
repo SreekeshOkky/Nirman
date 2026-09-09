@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
+import { brand } from "../lib/brand";
 import BrandMark from "../components/BrandMark";
 
 export default function AuthPage({ configurationMissing = false }) {
@@ -36,7 +37,7 @@ export default function AuthPage({ configurationMissing = false }) {
       <div className="auth-art">
         <div className="brand">
           <BrandMark />
-          <span>Nirmanam</span>
+          <span>{brand.name}</span>
         </div>
         <div>
           <p className="eyebrow">A CLEARER BUILD</p>
@@ -59,7 +60,7 @@ export default function AuthPage({ configurationMissing = false }) {
           {configurationMissing ? (
             <>
               <p className="eyebrow">SETUP REQUIRED</p>
-              <h2>Connect Nirmanam</h2>
+              <h2>Connect {brand.name}</h2>
               <p className="auth-subtitle">
                 Supabase environment variables are missing. Add
                 `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to
@@ -77,7 +78,7 @@ export default function AuthPage({ configurationMissing = false }) {
               </p>
               <h2>
                 {mode === "signin"
-                  ? "Sign in to Nirmanam"
+                  ? `Sign in to ${brand.name}`
                   : "Create your account"}
               </h2>
               <p className="auth-subtitle">Track your sites with confidence.</p>

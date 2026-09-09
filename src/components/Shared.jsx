@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowDownLeft, ArrowUpRight, Eye, Pencil, Trash2 } from "lucide-react";
+import { brand } from "../lib/brand";
 
 export const money = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
@@ -71,7 +72,7 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
   );
 }
 export function PageHeading({
-  eyebrow = "NORTH GROVE WORKSPACE",
+  eyebrow = `${brand.name.toUpperCase()} WORKSPACE`,
   title,
   subtitle,
   children,

@@ -22,6 +22,7 @@ import {
 } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { DEFAULT_FEATURES } from "../lib/features";
+import { brand } from "../lib/brand";
 import BrandMark from "./BrandMark";
 
 const nav = [
@@ -97,7 +98,7 @@ export default function AppLayout({
       <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
         <Link to="/" className="brand">
           <BrandMark />
-          <span>Nirmanam</span>
+          <span>{brand.name}</span>
         </Link>
         <div className="workspace-label">WORKSPACE</div>
         <nav className="main-nav">

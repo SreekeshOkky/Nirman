@@ -113,6 +113,20 @@ SUPABASE_SECRET_KEY=YOUR_SERVER_ONLY_SUPABASE_SECRET_KEY
 FRONTEND_URL=http://localhost:5173
 ```
 
+### White-labeling & theming
+
+The frontend is white-labelable at build time via `VITE_*` variables:
+
+- `VITE_BRAND_NAME` — the product name shown in the sidebar, auth screen, and document title (default: "Nirmanam").
+- `VITE_BRAND_LOGO` — a URL for the brand mark (defaults to the built-in house glyph).
+- `VITE_THEME_ACCENT` — a hex color that drives the primary accent (buttons, nav, links, focus, highlights); hover/soft/border shades are derived automatically.
+
+```bash
+VITE_BRAND_NAME="Acme Builds"
+VITE_BRAND_LOGO=https://cdn.example.com/logo.png
+VITE_THEME_ACCENT=#1a73e8
+```
+
 ### Feature flags
 
 Every feature ships enabled. On a deployment, set `FEATURE_FLAGS` to a JSON

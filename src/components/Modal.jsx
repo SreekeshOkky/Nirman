@@ -1,5 +1,6 @@
 import React from "react";
 import { X } from "lucide-react";
+import { brand } from "../lib/brand";
 
 export default function Modal({ title, subtitle, onClose, children }) {
   return (
@@ -7,7 +8,7 @@ export default function Modal({ title, subtitle, onClose, children }) {
       <div className="modal" onMouseDown={(event) => event.stopPropagation()}>
         <div className="modal-head">
           <div>
-            <p className="eyebrow">NIRMANAM WORKSPACE</p>
+            <p className="eyebrow">{brand.name.toUpperCase()} WORKSPACE</p>
             <h2>{title}</h2>
             <p>{subtitle}</p>
           </div>
