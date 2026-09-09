@@ -49,6 +49,22 @@ Python 3.9 can work with the current dependency set, but Python 3.11 is the depl
 └── vercel.json                  Vercel routing configuration
 ```
 
+## Agent deployment (rebrand & launch)
+
+This repo is **agent-first**. To have an LLM rebrand and deploy an instance,
+point it at `AGENTS.md` — it encodes the full conversation: collect branding
+(name/logo/accent), feature flags, then either a local Docker deploy or a
+Supabase + Vercel cloud deploy.
+
+```bash
+./scripts/rebrand.sh --name "Acme Builds" --accent "#1a73e8" --flags '{"notes":false}'
+./scripts/deploy-local.sh        # local: Supabase + app in Docker -> http://localhost:8080
+./scripts/deploy-cloud.sh        # cloud: new Supabase project + Vercel
+```
+
+Prerequisites are detected and installed/guided by `scripts/check-prereqs.sh`
+(Docker, Supabase CLI, Vercel CLI, Node, Python).
+
 ## 1. Install dependencies
 
 Install frontend dependencies:

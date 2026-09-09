@@ -1,0 +1,12 @@
+node_modules
+dist
+.venv
+.git
+.pytest_cache
+__pycache__
+*.py[cod]
+supabase/.temp
+.env
+.env.*
+!.env.example
+.DS_Store
