@@ -12,7 +12,7 @@ import { money, PageHeading } from "../components/Shared";
 
 function Metric({ label, value, icon, accent }) {
   return (
-    <div className="metric-card">
+    <div className={`metric-card metric-${accent}`}>
       <div className={`metric-icon ${accent}`}>{icon}</div>
       <div className="metric-label">{label}</div>
       <strong className="metric-value">{value}</strong>
