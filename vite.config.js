@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       VitePWA({
+        strategies: "injectManifest",
+        srcDir: "src",
+        filename: "sw.js",
         registerType: "autoUpdate",
         injectRegister: "inline",
         includeAssets: [
@@ -31,6 +34,19 @@ export default defineConfig(({ mode }) => {
           orientation: "portrait",
           start_url: "/",
           scope: "/",
+          share_target: {
+            action: "/scan",
+            method: "POST",
+            enctype: "multipart/form-data",
+            params: {
+              files: [
+                {
+                  name: "screenshot",
+                  accept: ["image/jpeg", "image/png", "image/webp"],
+                },
+              ],
+            },
+          },
           icons: [
             { src: "/icons/pwa-192.png", sizes: "192x192", type: "image/png" },
             { src: "/icons/pwa-512.png", sizes: "512x512", type: "image/png" },
@@ -43,9 +59,8 @@ export default defineConfig(({ mode }) => {
             },
           ],
         },
-        workbox: {
+        injectManifest: {
           globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
-          navigateFallbackDenylist: [/^\/api\//, /^\/rest\//, /^\/auth\//],
         },
       }),
     ],

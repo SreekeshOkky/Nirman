@@ -15,6 +15,7 @@ import CategoriesPage from "./pages/CategoriesPage";
 import TeamPage from "./pages/TeamPage";
 import ActivityPage from "./pages/ActivityPage";
 import SettingsPage from "./pages/SettingsPage";
+import ScanPage from "./pages/ScanPage";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -106,6 +107,7 @@ export default function App() {
   return (
     <>
       <Routes>
+        <Route path="scan" element={<ScanPage />} />
         <Route element={<AppLayout {...context} />}>
           <Route index element={<DashboardPage {...context} />} />
           <Route path="sites" element={<SitesPage {...context} />} />

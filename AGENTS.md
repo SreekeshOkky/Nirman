@@ -43,7 +43,7 @@ Apply them with:
 ### Step 2 — Feature flags
 
 Ask which features to disable (default: **all enabled**). Available flags:
-`audit_log`, `categories`, `notes`, `signup`.
+`audit_log`, `categories`, `notes`, `signup`, `scan`.
 
 Example — disable notes and public sign-up:
 

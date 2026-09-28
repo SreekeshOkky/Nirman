@@ -149,17 +149,48 @@ VITE_THEME_ACCENT=#1a73e8
 Every feature ships enabled. On a deployment, set `FEATURE_FLAGS` to a JSON
 object to turn features off; the flags are enforced by the API and the UI hides
 the disabled features too. Features that can be flagged: `audit_log`,
-`categories` (adding/managing your own categories), `notes`, and `signup`.
+`categories` (adding/managing your own categories), `notes`, `signup`, and
+`scan` (UPI screenshot scanning).
 Restart the API after changing it — the frontend picks up the flags at runtime
 from `GET /features`.
 
 ```bash
-FEATURE_FLAGS={"audit_log": false, "notes": false, "signup": false}
+FEATURE_FLAGS={"audit_log": false, "notes": false, "signup": false, "scan": false}
 ```
 
 Note: account sign-up is handled by Supabase Auth (not this API), so
 `signup` only hides the "Create an account" entry point. To hard-block new
 registrations, also disable "Allow new users to sign up" in Supabase Auth.
+
+### UPI screenshot scanning
+
+On the Ledger page, **Scan UPI screenshot** reads a payment screenshot from a
+UPI app (PhonePe, Google Pay, Paytm, super.money, BHIM, …) and prefills the
+Add-entry form as an **expense**: amount, date, payee, UPI reference, payment
+method and a suggested category. The screenshot is attached to the entry as its
+receipt and the user reviews everything before saving.
+
+This runs **entirely in the browser** using Tesseract.js (WASM), so it needs no
+API key, no server, and no extra Vercel cost, and the screenshot never leaves
+the device. Trade-offs:
+
+- It requires internet on first use: Tesseract's worker, WASM core and the
+  English model load from a CDN (jsdelivr / tessdata) and are then cached.
+- OCR on UPI screenshots is good but not perfect. Always review the prefilled
+  values; the parser is heuristic (`src/lib/upiScan.js`).
+- Disable the feature with the `scan` flag if a deployment does not want it.
+
+#### Share a screenshot straight into the app
+
+The PWA registers a **Web Share Target** for images, so on an installed copy you
+can tap **Share → Nirmanam** from PhonePe/Google Pay/Paytm/super.money/etc. and
+the screenshot opens directly in the scan flow (`/scan` → Ledger review).
+
+How it works: the OS POSTs the image to `/scan`; the service worker
+(`src/sw.js`) intercepts it, stashes the file in the Cache API, and redirects to
+the app, which reads it and opens the prefilled form. This requires the app to be
+**installed** (served over HTTPS) with the service worker active. The `signup`
+and `scan` flags do not affect the share target.
 
 Never expose `SUPABASE_SECRET_KEY` to the browser. Only variables prefixed with `VITE_` are bundled into the frontend.
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, Paperclip, Plus, ScanLine } from "lucide-react";
 import Modal from "./Modal";
 
 const forType = (categories, type) =>
@@ -11,20 +11,26 @@ export default function EntryModal({
   onSubmit,
   saving,
   editing,
+  prefill = null,
+  receiptFile = null,
   notesEnabled = true,
 }) {
-  const e = editing || {};
+  const e = editing || prefill || {};
   const isEdit = Boolean(editing);
+  const isScanned = Boolean(prefill) && !isEdit;
   const [entryType, setEntryType] = useState(
-    isEdit ? (e.entry_type === "income" ? "income" : "expense") : "expense",
+    (editing || prefill)?.entry_type === "income" ? "income" : "expense",
   );
   const [categoryId, setCategoryId] = useState(
     isEdit
       ? e.category_id || e.categories?.id
-      : forType(categories, "expense")[0]?.id ||
+      : prefill?.category_id ||
+          forType(categories, prefill?.entry_type === "income" ? "income" : "expense")[0]?.id ||
+          forType(categories, "expense")[0]?.id ||
           forType(categories, "income")[0]?.id ||
           categories[0]?.id,
   );
+  const [receipt, setReceipt] = useState(receiptFile || null);
   const visibleCategories = forType(categories, entryType);
   function handleTypeChange(value) {
     setEntryType(value);
@@ -33,15 +39,37 @@ export default function EntryModal({
   }
   return (
     <Modal
-      title={isEdit ? "Edit ledger entry" : "Add ledger entry"}
+      title={
+        isEdit
+          ? "Edit ledger entry"
+          : isScanned
+            ? "Review scanned entry"
+            : "Add ledger entry"
+      }
       subtitle={
         isEdit
           ? "Update the details for this ledger entry."
-          : "Record money moving in or out of this site."
+          : isScanned
+            ? "We read these details from your screenshot — check them before saving."
+            : "Record money moving in or out of this site."
       }
       onClose={onClose}
     >
-      <form onSubmit={onSubmit}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit(event, receipt);
+        }}
+      >
+        {isScanned && (
+          <div className="scan-banner">
+            <ScanLine size={16} />
+            <span>
+              Scanned from screenshot
+              {e.app ? ` (${e.app})` : ""}. Edit anything that looks wrong.
+            </span>
+          </div>
+        )}
         <div className="type-toggle">
           <label>
             <input
@@ -126,7 +154,7 @@ export default function EntryModal({
                   type="radio"
                   name="payment_method"
                   value={method}
-                  defaultChecked={isEdit && e.payment_method === method}
+                  defaultChecked={e.payment_method === method}
                 />
                 <span>{method}</span>
               </label>
@@ -154,6 +182,7 @@ export default function EntryModal({
                   name="note"
                   rows="2"
                   placeholder="Add context for your team..."
+                  defaultValue={e.note || ""}
                 />
               </div>
             )}
@@ -165,7 +194,13 @@ export default function EntryModal({
                 name="receipt"
                 type="file"
                 accept="image/jpeg,image/png,application/pdf"
+                onChange={(event) => setReceipt(event.target.files?.[0] || null)}
               />
+              {receipt && (
+                <p className="scan-attach">
+                  <Paperclip size={13} /> {receipt.name || "screenshot"} attached
+                </p>
+              )}
             </div>
           </>
         )}

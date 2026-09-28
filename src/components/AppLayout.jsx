@@ -206,6 +206,7 @@ export default function AppLayout({
               setSiteId,
               isBuilder,
               token,
+              features,
               ...context,
             }}
           />

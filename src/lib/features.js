@@ -3,6 +3,7 @@ export const DEFAULT_FEATURES = {
   categories: true,
   notes: true,
   signup: true,
+  scan: true,
 };
 
 export async function loadFeatures(baseUrl) {
