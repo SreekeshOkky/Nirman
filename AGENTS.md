@@ -32,7 +32,7 @@ Ask the user for:
 | --- | --- | --- |
 | Product name | `VITE_BRAND_NAME` | `Nirmanam` |
 | Logo URL | `VITE_BRAND_LOGO` | built-in mark |
-| Accent color (hex) | `VITE_THEME_ACCENT` | `#ef6f39` |
+| Accent color (hex) | `VITE_THEME_ACCENT` | `#b8481a` |
 
 Apply them with:
 

@@ -92,7 +92,8 @@ export default function DashboardPage({
             <p>Compare financial status across all accessible sites.</p>
           </div>
           <span className="secure-label">
-            <Building2 size={14} /> {overview.sites.length} sites
+            <Building2 size={14} /> {overview.sites.length}{" "}
+            {overview.sites.length === 1 ? "site" : "sites"}
           </span>
         </div>
         {overview.sites.length ? (

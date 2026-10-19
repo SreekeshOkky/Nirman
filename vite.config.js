@@ -5,7 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const brandName = env.VITE_BRAND_NAME || "Nirmanam";
-  const accent = env.VITE_THEME_ACCENT || "#ef6f39";
+  const accent = env.VITE_THEME_ACCENT || "#b8481a";
 
   return {
     plugins: [
