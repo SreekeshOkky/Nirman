@@ -1,8 +1,9 @@
 import React from "react";
-import { Building2, History, Plus, Tag, UserRound } from "lucide-react";
+import { Bell, Building2, History, Plus, Tag, UserRound } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { DEFAULT_FEATURES } from "../lib/features";
 import { brand } from "../lib/brand";
+import { updateItems } from "../lib/updates";
 import { getInitials } from "./Shared";
 import BrandMark from "./BrandMark";
 
@@ -13,6 +14,7 @@ export default function AppLayout({
   activeSites,
   isBuilder,
   profile,
+  updates,
   features = DEFAULT_FEATURES,
 }) {
   const location = useLocation();
@@ -32,6 +34,13 @@ export default function AppLayout({
   const onMe = ["/me", "/settings", "/categories", "/activity"].some((p) =>
     path.startsWith(p),
   );
+  const onUpdates = path === "/updates";
+  const updateCount = updateItems(updates).length;
+  const badge = updateCount ? (
+    <span className="count-badge" aria-label={`${updateCount} updates`}>
+      {updateCount > 99 ? "99+" : updateCount}
+    </span>
+  ) : null;
   const navClass = (active) => `nav-item ${active ? "active" : ""}`;
 
   return (
@@ -48,6 +57,11 @@ export default function AppLayout({
           <Link to={sitesHref} className={navClass(onSites)}>
             <Building2 size={19} strokeWidth={1.9} />
             <span>{sitesLabel}</span>
+          </Link>
+          <Link to="/updates" className={navClass(onUpdates)}>
+            <Bell size={19} strokeWidth={1.9} />
+            <span>Updates</span>
+            {badge}
           </Link>
           {isBuilder && enabled("audit_log") && (
             <NavLink
@@ -104,6 +118,17 @@ export default function AppLayout({
             <Plus size={26} strokeWidth={2.4} />
           </span>
           Add
+        </Link>
+        <Link
+          to="/updates"
+          className={onUpdates ? "active" : ""}
+          aria-current={onUpdates ? "page" : undefined}
+        >
+          <span className="bottom-nav-icon">
+            <Bell size={22} strokeWidth={1.9} />
+            {badge}
+          </span>
+          Updates
         </Link>
         <Link
           to="/me"

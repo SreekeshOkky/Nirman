@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Camera,
   ExternalLink,
   Paperclip,
 } from "lucide-react";
@@ -26,9 +27,18 @@ const formatTime = (iso) =>
       })
     : "";
 
-export default function EntryDetailModal({ entryId, siteId, token, onClose }) {
+export default function EntryDetailModal({
+  entryId,
+  siteId,
+  token,
+  onClose,
+  canAddReceipt = false,
+  onReceiptAdded,
+}) {
   const [entry, setEntry] = useState(null);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +54,23 @@ export default function EntryDetailModal({ entryId, siteId, token, onClose }) {
       cancelled = true;
     };
   }, [siteId, entryId, token]);
+
+  async function addReceipt(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      await api.uploadAttachment(siteId, file, token, entryId);
+      setEntry(await api.ledgerEntry(siteId, entryId, token));
+      onReceiptAdded?.();
+    } catch (reason) {
+      setUploadError(reason.message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   if (error) {
     return (
@@ -120,6 +147,21 @@ export default function EntryDetailModal({ entryId, siteId, token, onClose }) {
         {note && (
           <Detail label="Note" full>
             {note}
+          </Detail>
+        )}
+        {!attachment && canAddReceipt && (
+          <Detail label="Receipt" full>
+            <label className="receipt-tile">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,application/pdf"
+                onChange={addReceipt}
+                disabled={uploading}
+              />
+              <Camera size={18} />
+              <span>{uploading ? "Uploading…" : "Add receipt photo"}</span>
+            </label>
+            {uploadError && <p className="field-hint">{uploadError}</p>}
           </Detail>
         )}
         {attachment && (

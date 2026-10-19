@@ -1,5 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { arrivedFromPasswordLink, supabase } from "./lib/supabase";
 import { api } from "./lib/api";
 import { DEFAULT_FEATURES, loadFeatures } from "./lib/features";
@@ -20,6 +26,8 @@ import HomePage from "./pages/HomePage";
 import SitePage from "./pages/SitePage";
 import MePage from "./pages/MePage";
 import AddEntryPage from "./pages/AddEntryPage";
+import UpdatesPage from "./pages/UpdatesPage";
+import { updatesSeenAt } from "./lib/updates";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -39,8 +47,26 @@ export default function App() {
   const [needsPassword, setNeedsPassword] = useState(
     arrivedFromPasswordLink || window.location.pathname === "/welcome",
   );
+  const [updates, setUpdates] = useState(null);
+  const updatesFetchedAt = useRef(0);
   const navigate = useNavigate();
+  const location = useLocation();
   const token = session?.access_token;
+
+  // What needs attention (badge counts, home panel, Updates page).
+  const refreshUpdates = useCallback(() => {
+    if (!token) return;
+    updatesFetchedAt.current = Date.now();
+    api
+      .updates(token, updatesSeenAt())
+      .then(setUpdates)
+      .catch(() => {});
+  }, [token]);
+  // Refresh on sign-in and when moving around, at most every 30 seconds.
+  useEffect(() => {
+    if (token && Date.now() - updatesFetchedAt.current > 30000)
+      refreshUpdates();
+  }, [token, location.pathname, refreshUpdates]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -137,6 +163,8 @@ export default function App() {
     isBuilder,
     features,
     flash,
+    updates,
+    refreshUpdates,
   };
   const featureRoute = (flag, node) =>
     features[flag] === false ? <Navigate to="/" replace /> : node;
@@ -201,6 +229,7 @@ export default function App() {
               />
             }
           />
+          <Route path="updates" element={<UpdatesPage {...context} />} />
           <Route path="me" element={<MePage {...context} />} />
           <Route path="settings" element={<SettingsPage {...context} />} />
           <Route

@@ -16,6 +16,7 @@ export default function LedgerPage({
   features,
   isBuilder,
   site,
+  refreshUpdates,
 }) {
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -57,10 +58,17 @@ export default function LedgerPage({
     });
     return seen;
   }, [entries]);
-  // The mobile "Add entry" button links here with ?add=1.
+  // "Add" buttons link here with ?add=1; Updates links to one entry with
+  // ?view=<id> (e.g. to add a missing receipt).
   useEffect(() => {
-    if (loading || searchParams.get("add") !== "1") return;
+    if (loading) return;
+    const viewId = searchParams.get("view");
+    if (searchParams.get("add") !== "1" && !viewId) return;
     setSearchParams({}, { replace: true });
+    if (viewId) {
+      setViewing({ id: viewId });
+      return;
+    }
     setEditing(null);
     setPrefill(null);
     setPrefillReceipt(null);
@@ -113,6 +121,7 @@ export default function LedgerPage({
     const ledger = await api.ledger(siteId, {}, token);
     setEntries(ledger.items);
     outlet?.refreshSummary?.();
+    refreshUpdates?.();
   };
   async function create(event, receiptFile, { again = false } = {}) {
     event.preventDefault();
@@ -383,6 +392,11 @@ export default function LedgerPage({
           entryId={viewing.id}
           siteId={siteId}
           token={token}
+          canAddReceipt={site?.status !== "archived"}
+          onReceiptAdded={() => {
+            flash("Receipt added");
+            refreshUpdates?.();
+          }}
           onClose={() => setViewing(null)}
         />
       )}

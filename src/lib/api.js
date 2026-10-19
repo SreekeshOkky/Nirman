@@ -62,6 +62,12 @@ export const api = {
   sites: (token, params) =>
     apiRequest(`/sites?${new URLSearchParams(params || {})}`, {}, token),
   overview: (token) => apiRequest("/overview", {}, token),
+  updates: (token, since) =>
+    apiRequest(
+      `/updates${since ? `?since=${encodeURIComponent(since)}` : ""}`,
+      {},
+      token,
+    ),
   createSite: (data, token) =>
     apiRequest("/sites", { method: "POST", body: JSON.stringify(data) }, token),
   archiveSite: (siteId, token) =>

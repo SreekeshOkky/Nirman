@@ -4,6 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { formatMonth, money } from "../components/Shared";
 import SiteModal from "../components/SiteModal";
+import { updateItems } from "../lib/updates";
+import { UpdateRow } from "./UpdatesPage";
 
 function greeting(name) {
   const hour = new Date().getHours();
@@ -34,6 +36,7 @@ export default function HomePage({
   setSites,
   setSiteId,
   flash,
+  updates,
 }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -84,6 +87,7 @@ export default function HomePage({
     }
   }
 
+  const attention = isBuilder ? updateItems(updates) : [];
   const thisMonth = new Date().toISOString().slice(0, 7);
   const month = overview.monthly.find((row) => row.month === thisMonth) || {
     income: 0,
@@ -126,6 +130,27 @@ export default function HomePage({
         </section>
       )}
 
+      {attention.length > 0 && (
+        <section className="home-attention" aria-labelledby="attention-title">
+          <div className="section-head">
+            <h2 id="attention-title">Needs attention</h2>
+            <Link to="/updates" className="text-link">
+              See all
+            </Link>
+          </div>
+          <div className="card menu-card">
+            {attention.slice(0, 3).map((item) => (
+              <UpdateRow key={item.key} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {isBuilder && (
+        <div className="section-head">
+          <h2>Active sites</h2>
+        </div>
+      )}
       <section className="home-sites" aria-label="Active sites">
         {loading && !overview.sites.length ? (
           <div className="card empty-state">Loading your sites…</div>

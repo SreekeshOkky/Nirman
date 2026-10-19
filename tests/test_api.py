@@ -153,6 +153,14 @@ class _Query:
         self.filters.append(lambda row: row.get(key) == value)
         return self
 
+    def neq(self, key, value):
+        self.filters.append(lambda row: row.get(key) != value)
+        return self
+
+    def gte(self, key, value):
+        self.filters.append(lambda row: str(row.get(key)) >= value)
+        return self
+
     def in_(self, key, values):
         self.filters.append(lambda row: row.get(key) in values)
         return self
@@ -424,3 +432,55 @@ def test_ledger_search_matches_paid_to_and_strips_separators(fake_db):
 
     assert response.status_code == 200
     assert db.or_filters == ["description.ilike.*Durga   traders*,paid_to.ilike.*Durga   traders*"]
+
+
+def _recent(hours_ago):
+    from datetime import datetime, timedelta, timezone
+
+    return (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat()
+
+
+def _update_tables():
+    over = {"id": "site-2", "owner_id": "builder-1", "name": "Greenfield", "status": "active", "budget": 1000}
+    archived = {"id": "site-3", "owner_id": "builder-1", "name": "Old", "status": "archived", "budget": 10}
+    sup = {"full_name": "Suresh K"}
+    return {
+        "sites": [{**SITE, "budget": 100000}, over, archived],
+        "site_members": [{"id": "m-1", "site_id": "site-1", "user_id": "super-1"}],
+        "ledger_entries": [
+            # Supervisor payment, no receipt, an hour ago.
+            {"id": "e-1", "site_id": "site-1", "entry_type": "expense", "amount": 12000, "paid_to": "Mani", "entry_date": "2026-10-19", "created_at": _recent(1), "created_by": "super-1", "deleted_at": None, "attachments": [], "categories": {"name": "Labour"}, "profiles": sup},
+            # Has a receipt: never listed as missing.
+            {"id": "e-2", "site_id": "site-1", "entry_type": "expense", "amount": 9400, "entry_date": "2026-10-19", "created_at": _recent(2), "created_by": "super-1", "deleted_at": None, "attachments": [{"id": "a-1"}], "profiles": sup},
+            # Builder's own payment pushes Greenfield over budget.
+            {"id": "e-3", "site_id": "site-2", "entry_type": "expense", "amount": 1200, "entry_date": "2026-10-18", "created_at": _recent(30), "created_by": "builder-1", "deleted_at": None, "attachments": [], "profiles": {"full_name": "Ravi"}},
+            # Archived site: ignored entirely.
+            {"id": "e-4", "site_id": "site-3", "entry_type": "expense", "amount": 50, "entry_date": "2026-10-18", "created_at": _recent(1), "created_by": "super-1", "deleted_at": None, "attachments": []},
+        ],
+    }
+
+
+def test_updates_for_builder(fake_db):
+    fake_db(_update_tables())
+    data = TestClient(app).get("/api/updates").json()
+
+    assert [(s["site_id"], s["pct"]) for s in data["over_budget"]] == [("site-2", 120)]
+    assert [m["entry_id"] for m in data["missing_receipts"]] == ["e-1", "e-3"]
+    assert data["new_entries"] == [
+        {"site_id": "site-1", "site_name": SITE["name"], "added_by": "Suresh K", "count": 2, "total": 21400, "latest_at": data["new_entries"][0]["latest_at"]}
+    ]
+
+
+def test_updates_since_hides_entries_already_seen(fake_db):
+    fake_db(_update_tables())
+    data = TestClient(app).get("/api/updates", params={"since": _recent(1.5)}).json()
+
+    assert [(g["count"], g["total"]) for g in data["new_entries"]] == [(1, 12000)]
+
+
+def test_updates_for_supervisor_only_their_missing_receipts(fake_db):
+    fake_db(_update_tables(), user=SUPERVISOR)
+    data = TestClient(app).get("/api/updates").json()
+
+    assert data["over_budget"] == [] and data["new_entries"] == []
+    assert [m["entry_id"] for m in data["missing_receipts"]] == ["e-1"]

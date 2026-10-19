@@ -112,6 +112,87 @@ def workspace_overview(user: User):
     }
 
 
+@router.get("/updates")
+def list_updates(user: User, since: datetime | None = Query(default=None)):
+    """What needs attention across the user's active sites.
+
+    Builders: sites over (or near) budget, recent payments without a receipt,
+    and entries the team added since `since` (default: the last 48 hours).
+    Supervisors: only their own recent payments that still need a receipt.
+    """
+    db = get_admin_client()
+    empty = {"over_budget": [], "missing_receipts": [], "new_entries": []}
+    builder = user.role == "builder"
+    if builder:
+        sites = db.table("sites").select("id,name,budget").eq("owner_id", user.id).neq("status", "archived").execute().data or []
+    else:
+        member_ids = [row["site_id"] for row in db.table("site_members").select("site_id").eq("user_id", user.id).execute().data or []]
+        sites = db.table("sites").select("id,name,budget").in_("id", member_ids).neq("status", "archived").execute().data or [] if member_ids else []
+    if not sites:
+        return empty
+    names = {site["id"]: site["name"] for site in sites}
+    now = datetime.now(timezone.utc)
+    since = since or now - timedelta(hours=48)
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
+
+    over_budget = []
+    if builder:
+        spent: dict[str, Decimal] = {}
+        rows = db.table("ledger_entries").select("site_id,amount").in_("site_id", list(names)).eq("entry_type", "expense").is_("deleted_at", "null").execute().data or []
+        for row in rows:
+            spent[row["site_id"]] = spent.get(row["site_id"], Decimal("0")) + Decimal(str(row["amount"]))
+        for site in sites:
+            budget = Decimal(str(site.get("budget") or 0))
+            total = spent.get(site["id"], Decimal("0"))
+            if budget > 0 and total >= budget * Decimal("0.9"):
+                over_budget.append({"site_id": site["id"], "site_name": site["name"], "budget": budget, "spent": total, "pct": int(total * 100 / budget)})
+        over_budget.sort(key=lambda item: item["pct"], reverse=True)
+
+    # Recent entries only: older gaps are for the month-end review, not alerts.
+    recent = (
+        db.table("ledger_entries")
+        .select("id,site_id,entry_type,amount,paid_to,entry_date,created_at,created_by,categories(name),attachments(id),profiles!ledger_entries_created_by_fkey(full_name,email)")
+        .in_("site_id", list(names))
+        .is_("deleted_at", "null")
+        .gte("created_at", (now - timedelta(days=30)).isoformat())
+        .order("created_at", desc=True)
+        .execute()
+        .data
+        or []
+    )
+    person = lambda row: (row.get("profiles") or {}).get("full_name") or (row.get("profiles") or {}).get("email") or ""
+    missing = [
+        {
+            "entry_id": row["id"],
+            "site_id": row["site_id"],
+            "site_name": names[row["site_id"]],
+            "amount": row["amount"],
+            "paid_to": row.get("paid_to"),
+            "category": (row.get("categories") or {}).get("name"),
+            "entry_date": row["entry_date"],
+            "added_by": person(row),
+        }
+        for row in recent
+        if row["entry_type"] == "expense" and not row.get("attachments") and (builder or row["created_by"] == user.id)
+    ][:50]
+
+    new_entries = []
+    if builder:
+        groups: dict[tuple[str, str], dict] = {}
+        for row in recent:
+            created = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00"))
+            if row["created_by"] == user.id or created <= since:
+                continue
+            group = groups.setdefault((row["site_id"], row["created_by"]), {"site_id": row["site_id"], "site_name": names[row["site_id"]], "added_by": person(row), "count": 0, "total": Decimal("0"), "latest_at": row["created_at"]})
+            group["count"] += 1
+            if row["entry_type"] == "expense":
+                group["total"] += Decimal(str(row["amount"]))
+        new_entries = list(groups.values())
+
+    return {"over_budget": over_budget, "missing_receipts": missing, "new_entries": new_entries}
+
+
 @router.post("/sites", status_code=status.HTTP_201_CREATED)
 def create_site(payload: SiteCreate, user: Builder):
     db = get_admin_client()
