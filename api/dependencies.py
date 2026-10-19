@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-import time
-import jwt
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
@@ -65,27 +63,30 @@ def _bearer_token(authorization: str | None) -> str:
     if not token:
         logger.warning("Rejected request: bearer token was empty")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required")
-    logger.info("Received bearer token: present=true length=%s", len(token))
     return token
+
+
+def maybe_one(query) -> dict | None:
+    """Run a query expected to match at most one row.
+
+    supabase-py returns None (not an empty response) from maybe_single() when
+    nothing matches, so `.maybe_single().execute().data` would crash.
+    """
+    response = query.maybe_single().execute()
+    return response.data if response else None
 
 
 def get_current_user(authorization: Annotated[str | None, Header()] = None) -> CurrentUser:
     token = _bearer_token(authorization)
-    try:
-        claims = jwt.decode(token, options={"verify_signature": False})
-        logger.info("Token claims: issuer=%s audience=%s expired=%s", claims.get("iss"), claims.get("aud"), claims.get("exp", 0) < time.time())
-    except Exception:
-        logger.warning("Received token is not a decodable JWT")
     try:
         auth_user = get_admin_client().auth.get_user(token).user
     except Exception as exc:
         logger.warning("Supabase token validation failed: error_type=%s message=%s", type(exc).__name__, str(exc)[:160])
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired Supabase access token", headers={"WWW-Authenticate": "Bearer"}) from exc
 
-    profile_response = get_admin_client().table("profiles").select("id,email,role,full_name").eq("id", auth_user.id).single().execute()
-    if not profile_response.data:
+    profile = maybe_one(get_admin_client().table("profiles").select("id,email,role,full_name").eq("id", auth_user.id))
+    if not profile:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile is not configured")
-    profile = profile_response.data
     return CurrentUser(
         id=profile["id"],
         email=profile.get("email") or auth_user.email or "",
@@ -111,32 +112,19 @@ def require_feature(feature: str):
     return _check
 
 
-def get_site(site_id: str, user: CurrentUser, *, builder_only: bool = False) -> dict:
-    query = get_admin_client().table("sites").select("*").eq("id", site_id)
-    if builder_only:
-        query = query.eq("owner_id", user.id)
-    else:
-        query = query.or_(f"owner_id.eq.{user.id},id.in.(select site_id from site_members where user_id.eq.{user.id})")
-    response = query.maybe_single().execute()
-    if not response.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
-    return response.data
-
-
 def ensure_site_access(site_id: str, user: CurrentUser, *, builder_only: bool = False) -> dict:
     # Keep membership verification in Python as well as RLS. The service-role
     # client bypasses RLS, so this check is required for every API query.
     admin = get_admin_client()
-    site_response = admin.table("sites").select("*").eq("id", site_id).maybe_single().execute()
-    site = site_response.data
+    site = maybe_one(admin.table("sites").select("*").eq("id", site_id))
     if not site:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
     if site["owner_id"] == user.id:
         return site
     if builder_only or user.role != "supervisor":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this site")
-    member = admin.table("site_members").select("id").eq("site_id", site_id).eq("user_id", user.id).maybe_single().execute()
-    if not member.data:
+    member = maybe_one(admin.table("site_members").select("id").eq("site_id", site_id).eq("user_id", user.id))
+    if not member:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this site")
     return site
 
