@@ -10,6 +10,7 @@ const formatDate = (value) =>
       }).format(new Date(value))
     : "Recently";
 export default function NotesPage({
+  embedded = false,
   siteId,
   token,
   flash,
@@ -100,6 +101,7 @@ export default function NotesPage({
   return (
     <>
       <PageHeading
+        embedded={embedded}
         title="Notes"
         subtitle="Keep the context behind site decisions and interactions."
       />

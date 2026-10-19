@@ -1,224 +1,121 @@
-import React, { useState } from "react";
-import {
-  BarChart3,
-  Building2,
-  ChevronDown,
-  ClipboardList,
-  FileText,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Plus,
-  Settings2,
-  Users,
-} from "lucide-react";
-import {
-  Link,
-  NavLink,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import React from "react";
+import { Building2, History, Plus, Tag, UserRound } from "lucide-react";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { DEFAULT_FEATURES } from "../lib/features";
 import { brand } from "../lib/brand";
 import { getInitials } from "./Shared";
 import BrandMark from "./BrandMark";
 
-const nav = [
-  { label: "Overview", to: "/", icon: LayoutDashboard },
-  { label: "Sites", to: "/sites", icon: Building2 },
-  { label: "Ledger", to: "/ledger", icon: ClipboardList },
-  { label: "Reports", to: "/reports", icon: BarChart3 },
-  { label: "Notes", to: "/notes", icon: FileText },
-];
-
-const pageLabels = [
-  { to: "/", label: "Overview" },
-  { to: "/sites", label: "Sites" },
-  { to: "/ledger", label: "Ledger" },
-  { to: "/reports", label: "Reports" },
-  { to: "/notes", label: "Notes" },
-  { to: "/team", label: "Team & access" },
-  { to: "/categories", label: "Categories" },
-  { to: "/activity", label: "Activity log" },
-  { to: "/settings", label: "Settings" },
-];
-
+// Site-first shell: a sidebar on wide screens and a bottom bar on phones.
+// Everything about one site lives on its own page (/sites/:id), so there is
+// no global site picker.
 export default function AppLayout({
-  site,
-  sites,
-  siteId,
-  setSiteId,
+  activeSites,
   isBuilder,
   profile,
-  token,
   features = DEFAULT_FEATURES,
-  ...context
 }) {
-  const [mobileNav, setMobileNav] = useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
   const enabled = (flag) => features?.[flag] !== false;
-  const items = [
-    ...nav.filter((item) => item.to !== "/notes" || enabled("notes")),
-    ...(isBuilder
-      ? [
-          { label: "Team & access", to: "/team", icon: Users },
-          ...(enabled("categories")
-            ? [{ label: "Categories", to: "/categories", icon: Settings2 }]
-            : []),
-          ...(enabled("audit_log")
-            ? [{ label: "Activity log", to: "/activity", icon: ClipboardList }]
-            : []),
-        ]
-      : []),
-  ];
-  const signOut = async () => {
-    await supabase?.auth.signOut();
-    navigate("/");
-  };
-  const activeSites = sites.filter((item) => item.status !== "archived");
-  const selectedSiteId =
-    activeSites.find((item) => item.id === siteId)?.id ||
-    activeSites[0]?.id ||
-    "";
-  const currentPage =
-    pageLabels.find(({ to }) =>
-      to === "/" ? location.pathname === "/" : location.pathname.startsWith(to),
-    )?.label || "Overview";
-  const noSiteContextPages = ["/", "/sites", "/activity", "/categories"];
-  const hasSiteContext = !noSiteContextPages.includes(location.pathname);
-  const breadcrumbRoot = hasSiteContext
-    ? site?.name || (sites.length ? sites[0].name : "No sites yet")
-    : "Workspace";
+  const path = location.pathname;
+
+  // "Add" records against the open site, otherwise asks which site.
+  const openSite = path.match(/^\/sites\/([^/]+)/)?.[1];
+  const addHref = openSite ? `/sites/${openSite}?add=1` : "/add";
+
+  // A supervisor on a single site has no list of sites to go back to.
+  const singleSite =
+    !isBuilder && activeSites.length === 1 ? activeSites[0] : null;
+  const sitesHref = singleSite ? `/sites/${singleSite.id}` : "/";
+  const sitesLabel = singleSite ? "Site" : "Sites";
+  const onSites = path === "/" || path.startsWith("/sites") || path === "/add";
+  const onMe = ["/me", "/settings", "/categories", "/activity"].some((p) =>
+    path.startsWith(p),
+  );
+  const navClass = (active) => `nav-item ${active ? "active" : ""}`;
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
-        <Link to="/" className="brand">
+      <aside className="sidebar" aria-label="Main">
+        <Link to={sitesHref} className="brand">
           <BrandMark />
           <span>{brand.name}</span>
         </Link>
-        <div className="workspace-label">WORKSPACE</div>
+        <Link to={addHref} className="primary-button sidebar-add">
+          <Plus size={18} /> Add entry
+        </Link>
         <nav className="main-nav">
-          {items.map(({ label, to, icon: Icon }) => (
+          <Link to={sitesHref} className={navClass(onSites)}>
+            <Building2 size={19} strokeWidth={1.9} />
+            <span>{sitesLabel}</span>
+          </Link>
+          {isBuilder && enabled("audit_log") && (
             <NavLink
-              end={to === "/"}
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `nav-item ${isActive ? "active" : ""}`
-              }
-              onClick={() => setMobileNav(false)}
+              to="/activity"
+              className={({ isActive }) => navClass(isActive)}
             >
-              <Icon size={18} strokeWidth={1.8} />
-              <span>{label}</span>
-              {label === "Sites" && (
-                <span className="nav-count">{activeSites.length}</span>
-              )}
+              <History size={19} strokeWidth={1.9} />
+              <span>Activity log</span>
             </NavLink>
-          ))}
+          )}
+          {isBuilder && enabled("categories") && (
+            <NavLink
+              to="/categories"
+              className={({ isActive }) => navClass(isActive)}
+            >
+              <Tag size={19} strokeWidth={1.9} />
+              <span>Categories</span>
+            </NavLink>
+          )}
         </nav>
-        <div className="sidebar-bottom">
-          <div className="workspace-label">ACCOUNT</div>
-          <NavLink
-            to="/settings"
-            className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          >
-            <Settings2 size={18} strokeWidth={1.8} />
-            <span>Settings</span>
-          </NavLink>
-          <button className="nav-item" onClick={signOut}>
-            <LogOut size={18} strokeWidth={1.8} />
-            <span>Sign out</span>
-          </button>
-        </div>
-        <div className="sidebar-user">
+        <Link
+          to="/me"
+          className={`sidebar-user ${/^\/(me|settings)/.test(path) ? "active" : ""}`}
+        >
           <div className="avatar avatar-dark">
             {getInitials(profile?.full_name) || "?"}
           </div>
-          <div>
+          <span>
             <strong>{profile?.full_name || "Account"}</strong>
-            <span>{profile?.role || "user"} account</span>
-          </div>
-        </div>
+            <span>{isBuilder ? "Builder" : "Supervisor"} · settings</span>
+          </span>
+        </Link>
       </aside>
+
       <main className="main-content">
-        <header className="topbar">
-          <button className="mobile-menu" onClick={() => setMobileNav(true)}>
-            <Menu size={22} />
-          </button>
-          <div className="breadcrumb">
-            <span>{breadcrumbRoot}</span>
-            <span className="slash">/</span>
-            <strong>{currentPage}</strong>
-          </div>
-          <div className="top-actions">
-            <Link to="/settings" className="top-avatar" title="Settings">
-              {getInitials(profile?.full_name) || "?"}
-            </Link>
-          </div>
-        </header>
         <div className="page-wrap">
-          {hasSiteContext && (
-            <div className="site-toolbar">
-              <label className="site-selector">
-                <span className="site-icon">
-                  <Building2 size={16} />
-                </span>
-                <span>
-                  <small>VIEWING SITE</small>
-                  <strong>
-                    {site?.name ||
-                      (sites.length ? sites[0].name : "No sites yet")}
-                  </strong>
-                </span>
-                <ChevronDown size={16} />
-                <select
-                  aria-label="Select site"
-                  value={selectedSiteId}
-                  onChange={(event) => setSiteId(event.target.value)}
-                  disabled={!activeSites.length}
-                >
-                  {!activeSites.length && (
-                    <option value="">No active sites</option>
-                  )}
-                  {activeSites.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
-          <Outlet
-            context={{
-              site,
-              sites,
-              siteId: selectedSiteId,
-              setSiteId,
-              isBuilder,
-              token,
-              features,
-              ...context,
-            }}
-          />
+          <Outlet />
         </div>
       </main>
-      {activeSites.length > 0 && location.pathname !== "/settings" && (
-        <Link className="fab" to="/ledger?add=1">
-          <Plus size={18} /> Add entry
+
+      <nav className="bottom-nav" aria-label="Main">
+        <Link
+          to={sitesHref}
+          className={onSites ? "active" : ""}
+          aria-current={onSites ? "page" : undefined}
+        >
+          <span className="bottom-nav-icon">
+            <Building2 size={22} strokeWidth={1.9} />
+          </span>
+          {sitesLabel}
         </Link>
-      )}
-      {mobileNav && (
-        <button
-          className="mobile-overlay"
-          aria-label="Close navigation"
-          onClick={() => setMobileNav(false)}
-        />
-      )}
+        <Link to={addHref} className="bottom-nav-add" aria-label="Add entry">
+          <span>
+            <Plus size={26} strokeWidth={2.4} />
+          </span>
+          Add
+        </Link>
+        <Link
+          to="/me"
+          className={onMe ? "active" : ""}
+          aria-current={onMe ? "page" : undefined}
+        >
+          <span className="bottom-nav-icon">
+            <UserRound size={22} strokeWidth={1.9} />
+          </span>
+          Me
+        </Link>
+      </nav>
     </div>
   );
 }

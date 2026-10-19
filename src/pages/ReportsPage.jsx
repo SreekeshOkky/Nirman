@@ -8,7 +8,7 @@ import {
 } from "../components/Shared";
 import EntryDetailModal from "../components/EntryDetailModal";
 import { api } from "../lib/api";
-export default function ReportsPage({ site, siteId, token }) {
+export default function ReportsPage({ embedded = false, site, siteId, token }) {
   const [summary, setSummary] = useState({
     income: 0,
     expenses: 0,
@@ -77,6 +77,7 @@ export default function ReportsPage({ site, siteId, token }) {
     return (
       <>
         <PageHeading
+          embedded={embedded}
           title="Reports"
           subtitle="Select a construction site to view its report."
         />
@@ -87,6 +88,7 @@ export default function ReportsPage({ site, siteId, token }) {
     return (
       <>
         <PageHeading
+          embedded={embedded}
           title="Reports"
           subtitle="Understand the financial health of this construction site."
         />
@@ -126,6 +128,7 @@ export default function ReportsPage({ site, siteId, token }) {
   return (
     <>
       <PageHeading
+        embedded={embedded}
         title="Reports"
         subtitle="Understand the financial health of this construction site."
       >
@@ -133,26 +136,29 @@ export default function ReportsPage({ site, siteId, token }) {
           <Download size={15} /> Export all entries
         </button>
       </PageHeading>
-      <section className="report-summary">
-        <div className="card report-hero">
-          <p className="eyebrow">SITE PERFORMANCE</p>
-          <h2>{site.name}</h2>
-          <p>Complete financial picture for your selected site.</p>
-          <div className="report-big-number">
-            {money(summary.balance)} <span>net balance</span>
+      {/* The site header already shows these totals. */}
+      {!embedded && (
+        <section className="report-summary">
+          <div className="card report-hero">
+            <p className="eyebrow">SITE PERFORMANCE</p>
+            <h2>{site.name}</h2>
+            <p>Complete financial picture for your selected site.</p>
+            <div className="report-big-number">
+              {money(summary.balance)} <span>net balance</span>
+            </div>
           </div>
-        </div>
-        <div className="card report-stat">
-          <span>Total income</span>
-          <strong className="positive">{money(summary.income)}</strong>
-          <small>Money received</small>
-        </div>
-        <div className="card report-stat">
-          <span>Total expenses</span>
-          <strong>{money(summary.expenses)}</strong>
-          <small>Money spent</small>
-        </div>
-      </section>
+          <div className="card report-stat">
+            <span>Total income</span>
+            <strong className="positive">{money(summary.income)}</strong>
+            <small>Money received</small>
+          </div>
+          <div className="card report-stat">
+            <span>Total expenses</span>
+            <strong>{money(summary.expenses)}</strong>
+            <small>Money spent</small>
+          </div>
+        </section>
+      )}
       <section className="report-grid">
         <div className="card report-card">
           <div className="card-head">

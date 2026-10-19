@@ -3,7 +3,13 @@ import { Mail, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { PageHeading, getInitials } from "../components/Shared";
 import InviteModal from "../components/InviteModal";
 import { api } from "../lib/api";
-export default function TeamPage({ siteId, token, flash, profile }) {
+export default function TeamPage({
+  embedded = false,
+  siteId,
+  token,
+  flash,
+  profile,
+}) {
   const [members, setMembers] = useState([]);
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +110,7 @@ export default function TeamPage({ siteId, token, flash, profile }) {
   return (
     <>
       <PageHeading
+        embedded={embedded}
         title="Team & access"
         subtitle="Manage who can contribute to this site."
       >

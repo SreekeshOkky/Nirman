@@ -44,7 +44,7 @@ export default function SitesPage({
       setSiteId(site.id);
       setShow(false);
       flash("Site created");
-      navigate("/");
+      navigate(`/sites/${site.id}`);
     } catch (error) {
       flash(error.message);
     } finally {
@@ -84,8 +84,8 @@ export default function SitesPage({
   return (
     <>
       <PageHeading
-        title="Sites"
-        subtitle="Your construction projects, in one place."
+        title="All sites"
+        subtitle="Every site, including finished ones you can reactivate."
       >
         {isBuilder && (
           <button className="primary-button" onClick={() => setShow(true)}>
@@ -146,7 +146,7 @@ export default function SitesPage({
                       className="site-card-main"
                       onClick={() => {
                         setSiteId(site.id);
-                        navigate("/reports");
+                        navigate(`/sites/${site.id}`);
                       }}
                     >
                       <CardBody site={site} />

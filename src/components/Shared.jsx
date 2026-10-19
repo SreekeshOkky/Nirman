@@ -1,6 +1,5 @@
 import React from "react";
 import { ArrowDownLeft, ArrowUpRight, Eye, Pencil, Trash2 } from "lucide-react";
-import { brand } from "../lib/brand";
 
 export const getInitials = (name) => {
   if (!name) return "";
@@ -107,19 +106,24 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
   );
 }
 export function PageHeading({
-  eyebrow = `${brand.name.toUpperCase()} WORKSPACE`,
+  eyebrow = null,
   title,
   subtitle,
   children,
+  embedded = false,
 }) {
+  // Inside a site tab the site header already names the page, so only the
+  // actions are shown.
+  if (embedded)
+    return children ? <div className="tab-actions">{children}</div> : null;
   return (
     <div className="page-heading">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
-        <p className="subtitle">{subtitle}</p>
+        {subtitle && <p className="subtitle">{subtitle}</p>}
       </div>
-      <div className="heading-actions">{children}</div>
+      {children && <div className="heading-actions">{children}</div>}
     </div>
   );
 }

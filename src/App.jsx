@@ -6,7 +6,6 @@ import { DEFAULT_FEATURES, loadFeatures } from "./lib/features";
 import { brand } from "./lib/brand";
 import AppLayout from "./components/AppLayout";
 import AuthPage from "./pages/AuthPage";
-import DashboardPage from "./pages/DashboardPage";
 import SitesPage from "./pages/SitesPage";
 import LedgerPage from "./pages/LedgerPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -17,6 +16,10 @@ import ActivityPage from "./pages/ActivityPage";
 import SettingsPage from "./pages/SettingsPage";
 import ScanPage from "./pages/ScanPage";
 import SetPasswordPage from "./pages/SetPasswordPage";
+import HomePage from "./pages/HomePage";
+import SitePage from "./pages/SitePage";
+import MePage from "./pages/MePage";
+import AddEntryPage from "./pages/AddEntryPage";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -96,7 +99,7 @@ export default function App() {
     );
   };
   const activeSites = sites.filter((item) => item.status !== "archived");
-  const site = activeSites.find((item) => item.id === siteId) || null;
+  const site = sites.find((item) => item.id === siteId) || null;
   const isBuilder = profile.role === "builder";
 
   if (!supabase) return <AuthPage configurationMissing features={features} />;
@@ -142,52 +145,69 @@ export default function App() {
       <Routes>
         <Route path="scan" element={<ScanPage />} />
         <Route element={<AppLayout {...context} />}>
-          <Route index element={<DashboardPage {...context} />} />
+          <Route
+            index
+            element={
+              sitesLoading || !profile.role ? (
+                <div className="auth-loading">Loading...</div>
+              ) : !isBuilder && activeSites.length === 1 ? (
+                // A supervisor with one site goes straight to it.
+                <Navigate to={`/sites/${activeSites[0].id}`} replace />
+              ) : (
+                <HomePage {...context} />
+              )
+            }
+          />
           <Route path="sites" element={<SitesPage {...context} />} />
           <Route
-            path="ledger"
+            path="sites/:siteId"
+            element={<SitePage {...context} sitesLoading={sitesLoading} />}
+          >
+            <Route index element={<LedgerPage {...context} embedded />} />
+            <Route
+              path="summary"
+              element={
+                isBuilder ? (
+                  <ReportsPage {...context} embedded />
+                ) : (
+                  <Navigate to=".." replace />
+                )
+              }
+            />
+            <Route
+              path="notes"
+              element={featureRoute(
+                "notes",
+                <NotesPage {...context} embedded />,
+              )}
+            />
+            <Route
+              path="team"
+              element={
+                isBuilder ? (
+                  <TeamPage {...context} embedded />
+                ) : (
+                  <Navigate to=".." replace />
+                )
+              }
+            />
+          </Route>
+          <Route
+            path="add"
             element={
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site ? (
-                <LedgerPage {...context} />
-              ) : (
-                <Navigate to="/sites" replace />
-              )
+              <AddEntryPage
+                activeSites={activeSites}
+                sitesLoading={sitesLoading}
+              />
             }
           />
-          <Route
-            path="reports"
-            element={
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site ? (
-                <ReportsPage {...context} />
-              ) : (
-                <Navigate to="/sites" replace />
-              )
-            }
-          />
-          <Route
-            path="notes"
-            element={featureRoute(
-              "notes",
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site ? (
-                <NotesPage {...context} />
-              ) : (
-                <Navigate to="/sites" replace />
-              ),
-            )}
-          />
+          <Route path="me" element={<MePage {...context} />} />
+          <Route path="settings" element={<SettingsPage {...context} />} />
           <Route
             path="categories"
             element={featureRoute(
               "categories",
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site && isBuilder ? (
+              isBuilder ? (
                 <CategoriesPage {...context} />
               ) : (
                 <Navigate to="/" replace />
@@ -195,31 +215,42 @@ export default function App() {
             )}
           />
           <Route
-            path="team"
-            element={
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site && isBuilder ? (
-                <TeamPage {...context} />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
-          />
-          <Route
             path="activity"
             element={featureRoute(
               "audit_log",
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site && isBuilder ? (
+              isBuilder ? (
                 <ActivityPage {...context} />
               ) : (
                 <Navigate to="/" replace />
               ),
             )}
           />
-          <Route path="settings" element={<SettingsPage {...context} />} />
+          {/* Old addresses from before sites had their own pages. */}
+          {[
+            ["ledger", ""],
+            ["reports", "/summary"],
+            ["notes", "/notes"],
+            ["team", "/team"],
+          ].map(([path, tab]) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                sitesLoading ? (
+                  <div className="auth-loading">Loading...</div>
+                ) : (
+                  <Navigate
+                    to={
+                      site || activeSites[0]
+                        ? `/sites/${(site || activeSites[0]).id}${tab}`
+                        : "/"
+                    }
+                    replace
+                  />
+                )
+              }
+            />
+          ))}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

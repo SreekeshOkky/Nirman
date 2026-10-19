@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Filter, Plus, ScanLine, Search, Trash2 } from "lucide-react";
 import { PageHeading, EntryRow } from "../components/Shared";
 import EntryModal from "../components/EntryModal";
@@ -8,7 +8,14 @@ import Modal from "../components/Modal";
 import { api } from "../lib/api";
 import { scanUpiScreenshot } from "../lib/upiScan";
 import { takePendingShare, takeSharedFile } from "../lib/shareTarget";
-export default function LedgerPage({ siteId, token, flash, features, isBuilder }) {
+export default function LedgerPage({
+  embedded = false,
+  siteId,
+  token,
+  flash,
+  features,
+  isBuilder,
+}) {
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +32,8 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
   const [prefillReceipt, setPrefillReceipt] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  // Inside a site page: lets the header's budget figures follow our changes.
+  const outlet = useOutletContext();
   const scanInputRef = useRef(null);
   const scanEnabled = features?.scan !== false;
   // How often each category is used, so the entry form can list them first.
@@ -90,6 +99,7 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
   const refresh = async () => {
     const ledger = await api.ledger(siteId, {}, token);
     setEntries(ledger.items);
+    outlet?.refreshSummary?.();
   };
   async function create(event, receiptFile) {
     event.preventDefault();
@@ -146,7 +156,9 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
           setScanProgress(message.progress || 0);
         } else if (message?.status) {
           setScanStatus(
-            message.status.charAt(0).toUpperCase() + message.status.slice(1) + "…",
+            message.status.charAt(0).toUpperCase() +
+              message.status.slice(1) +
+              "…",
           );
         }
       });
@@ -222,12 +234,13 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
   return (
     <>
       <PageHeading
+        embedded={embedded}
         title="Ledger"
         subtitle="Track every rupee moving through this site."
       >
         {scanEnabled && (
           <button className="secondary-button" onClick={openScan}>
-            <ScanLine size={16} /> Scan UPI screenshot
+            <ScanLine size={16} /> Scan UPI
           </button>
         )}
         <button
@@ -358,7 +371,9 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
         >
           <div className="scan-progress">
             <div className="scan-progress-track">
-              <i style={{ width: `${Math.round((scanProgress || 0) * 100)}%` }} />
+              <i
+                style={{ width: `${Math.round((scanProgress || 0) * 100)}%` }}
+              />
             </div>
             <p className="scan-status">{scanStatus || "Working…"}</p>
             <p className="field-hint">
