@@ -167,6 +167,10 @@ class _Query:
     def range(self, *_):
         return self
 
+    def or_(self, expr):
+        self.db.or_filters.append(expr)
+        return self
+
     def maybe_single(self):
         self.single = True
         return self
@@ -214,6 +218,7 @@ class _FakeDB:
     def __init__(self, tables=None, auth_user_id="builder-1"):
         self.tables = {name: [dict(row) for row in rows] for name, rows in (tables or {}).items()}
         self.selects = []
+        self.or_filters = []
         self.invites = []
         db = self
 
@@ -397,3 +402,25 @@ def test_deleted_entry_can_be_restored(fake_db):
     assert client.delete("/api/sites/site-1/ledger/e-1").status_code == 200
     assert client.post("/api/sites/site-1/ledger/e-1/restore").status_code == 200
     assert db.tables["ledger_entries"][0]["deleted_at"] is None
+
+
+def test_ledger_entry_saves_paid_to(fake_db):
+    category_id = "00000000-0000-0000-0000-000000000001"
+    category = {"id": category_id, "site_id": "site-1", "name": "Labour", "type": "expense", "is_active": True}
+    db = fake_db({"sites": [SITE], "categories": [category]})
+    response = TestClient(app).post(
+        "/api/sites/site-1/ledger",
+        json={"entry_type": "expense", "category_id": category_id, "amount": 12000, "entry_date": "2026-10-19", "paid_to": "Mani & team"},
+    )
+
+    assert response.status_code == 201
+    assert db.tables["ledger_entries"][-1]["paid_to"] == "Mani & team"
+    assert db.tables["audit_logs"][-1]["description"] == "Added expense for Labour to Mani & team"
+
+
+def test_ledger_search_matches_paid_to_and_strips_separators(fake_db):
+    db = fake_db({"sites": [SITE], "ledger_entries": []})
+    response = TestClient(app).get("/api/sites/site-1/ledger", params={"search": "Durga, (traders)"})
+
+    assert response.status_code == 200
+    assert db.or_filters == ["description.ilike.*Durga   traders*,paid_to.ilike.*Durga   traders*"]

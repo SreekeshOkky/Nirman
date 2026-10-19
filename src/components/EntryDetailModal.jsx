@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import Modal from "./Modal";
 import { api } from "../lib/api";
-import { money } from "./Shared";
+import { formatDate, money } from "./Shared";
 
 function Detail({ label, children, full }) {
   return (
@@ -81,8 +81,8 @@ export default function EntryDetailModal({ entryId, siteId, token, onClose }) {
 
   return (
     <Modal
-      title={isIncome ? "Income entry" : "Expense entry"}
-      subtitle={entry.description || entry.categories?.name || "Ledger entry"}
+      title={isIncome ? "Money received" : "Payment"}
+      subtitle={entry.paid_to || entry.categories?.name || "Entry"}
       onClose={onClose}
     >
       <div className={`detail-banner ${type}`}>
@@ -91,7 +91,7 @@ export default function EntryDetailModal({ entryId, siteId, token, onClose }) {
         </span>
         <div>
           <span className="detail-banner-type">
-            {isIncome ? "Income" : "Expense"}
+            {isIncome ? "Received" : "Paid out"}
           </span>
           <strong className={`detail-amount ${type}`}>
             {isIncome ? "+" : "-"}
@@ -100,15 +100,21 @@ export default function EntryDetailModal({ entryId, siteId, token, onClose }) {
         </div>
       </div>
       <div className="detail-grid">
+        <Detail label={isIncome ? "Received from" : "Paid to"}>
+          {entry.paid_to}
+        </Detail>
         <Detail label="Category">{entry.categories?.name}</Detail>
-        <Detail label="Entry date">{entry.entry_date}</Detail>
-        <Detail label="Payment method">{entry.payment_method}</Detail>
+        <Detail label="Date">{formatDate(entry.entry_date)}</Detail>
+        <Detail label="How">{entry.payment_method}</Detail>
+        {entry.reference && (
+          <Detail label="UPI / bank reference">{entry.reference}</Detail>
+        )}
         <Detail label="Added by">{createdBy}</Detail>
         <Detail label="Recorded">{formatTime(entry.created_at)}</Detail>
         {entry.updated_at !== entry.created_at && (
           <Detail label="Last updated">{formatTime(entry.updated_at)}</Detail>
         )}
-        <Detail label="Description" full>
+        <Detail label="What for" full>
           {entry.description}
         </Detail>
         {note && (

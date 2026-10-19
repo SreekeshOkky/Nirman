@@ -2418,6 +2418,7 @@ div.site-card-main {
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
+  gap: 6px;
 }
 .chip span:hover {
   background: var(--line);
@@ -2997,4 +2998,212 @@ so undo the generic label styles there. */
 .site-tile-foot span:last-child {
   white-space: nowrap;
   text-align: right;
+}
+
+/* ---------- Add / edit entry panel ---------- */
+.modal-backdrop.panel {
+  padding: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+.modal.panel {
+  width: min(520px, 100%);
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 24px 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: panel-in 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes panel-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.modal.panel .modal-head {
+  margin: 0;
+  padding: 20px 24px 14px;
+}
+.entry-form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.entry-form-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 24px 8px;
+}
+.entry-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px calc(16px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.entry-form-actions .save-again {
+  margin-right: auto;
+}
+.text-button {
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+.text-button:disabled {
+  opacity: 0.5;
+}
+.entry-type-hint {
+  margin: -10px 0 14px;
+}
+.amount-tile {
+  display: block;
+  margin-bottom: 16px;
+  padding: 12px 16px 14px;
+  border-radius: 20px;
+  background: var(--surface-2);
+  cursor: text;
+}
+.amount-tile > span:first-child {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.amount-tile-input {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.amount-tile-input > span {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.amount-tile-input input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--ink);
+  -moz-appearance: textfield;
+}
+.amount-tile-input input::-webkit-outer-spin-button,
+.amount-tile-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.amount-tile:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.recent-payees {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  margin-top: 6px;
+}
+.recent-payees > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin-right: 2px;
+}
+.recent-payees button {
+  min-height: 36px;
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.entry-form-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.receipt-tile {
+  position: relative;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  margin: 0 !important;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-strong) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+}
+.receipt-tile span {
+  margin: 0 !important;
+  color: inherit !important;
+  font-weight: inherit !important;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.receipt-tile.attached {
+  background: var(--income-soft);
+  color: var(--income-strong) !important;
+}
+.receipt-tile input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.receipt-tile:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+@media (max-width: 640px) {
+  .modal.panel {
+    width: 100%;
+    border-radius: 0;
+  }
+  .modal.panel .modal-head {
+    padding: 14px 18px 10px;
+  }
+  .entry-form-body {
+    padding: 14px 18px 8px;
+  }
+  .entry-form-actions {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  /* On a phone: one big Save button; the X closes the form. */
+  .entry-form-actions .save-again,
+  .entry-form-actions .secondary-button {
+    display: none;
+  }
+  .entry-form-actions .primary-button {
+    flex: 1;
+    min-height: 54px;
+    font-size: 16px;
+  }
+}
+@media (max-width: 380px) {
+  .entry-form-pair {
+    grid-template-columns: 1fr;
+  }
 }

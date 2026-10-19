@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { Check, ChevronDown, Paperclip, ScanLine } from "lucide-react";
+import { Camera, Check, ChevronDown, Paperclip, ScanLine } from "lucide-react";
 import Modal from "./Modal";
 
-const PAYMENT_METHODS = ["UPI", "Bank Transfer", "Cash"];
+const PAYMENT_METHODS = ["Cash", "UPI", "Bank Transfer"];
 const DEFAULTS_KEY = "entry-form-defaults";
 
 const forType = (categories, type) =>
@@ -30,6 +30,8 @@ function rememberEntryDefaults(values) {
 export default function EntryModal({
   categories,
   usage = {},
+  payees = { expense: [], income: [] },
+  siteName = "",
   onClose,
   onSubmit,
   saving,
@@ -73,133 +75,173 @@ export default function EntryModal({
   const [payment, setPayment] = useState(
     e.payment_method || (isEdit ? "" : defaults.payment_method || ""),
   );
+  const [payee, setPayee] = useState(e.paid_to || prefill?.counterparty || "");
   const [receipt, setReceipt] = useState(receiptFile || null);
   const visibleCategories = sorted(entryType);
-  const hasExtras = Boolean(e.note || receiptFile);
+  const received = entryType === "income";
+  const recent = (payees[entryType] || [])
+    .filter((name) => name !== payee)
+    .slice(0, 3);
+  const hasDetails = Boolean(e.description || (e.note && !isEdit));
+
   function handleTypeChange(value) {
     setEntryType(value);
     setCategoryId(pickCategory(value));
   }
+
+  function submit(event) {
+    event.preventDefault();
+    const again = event.nativeEvent.submitter?.value === "again";
+    if (!isEdit)
+      rememberEntryDefaults({
+        [entryType]: categoryId,
+        payment_method: payment,
+      });
+    onSubmit(event, receipt, { again });
+  }
+
   return (
     <Modal
+      variant="panel"
       title={
-        isEdit ? "Edit entry" : isScanned ? "Review scanned entry" : "Add entry"
-      }
-      subtitle={
         isEdit
-          ? "Update the details for this entry."
+          ? "Edit entry"
           : isScanned
-            ? "We read these details from your screenshot — check them before saving."
-            : "Record money paid out or received for this site."
+            ? "Check scanned payment"
+            : "Add entry"
       }
+      subtitle={siteName}
       onClose={onClose}
     >
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!isEdit)
-            rememberEntryDefaults({
-              [entryType]: categoryId,
-              payment_method: payment,
-            });
-          onSubmit(event, receipt);
-        }}
-      >
-        {isScanned && (
-          <div className="scan-banner">
-            <ScanLine size={16} />
-            <span>
-              Scanned from screenshot
-              {e.app ? ` (${e.app})` : ""}. Edit anything that looks wrong.
-            </span>
-          </div>
-        )}
-        <div className="type-toggle">
-          <label>
-            <input
-              type="radio"
-              name="entry_type"
-              value="expense"
-              checked={entryType === "expense"}
-              onChange={(event) => handleTypeChange(event.target.value)}
-              disabled={isEdit}
-            />
-            <span>Expense</span>
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="entry_type"
-              value="income"
-              checked={entryType === "income"}
-              onChange={(event) => handleTypeChange(event.target.value)}
-              disabled={isEdit}
-            />
-            <span>Income</span>
-          </label>
-        </div>
-        {isEdit && (
-          <p className="field-hint">
-            An expense can't be changed to income (or the other way round).
-            Delete this entry and add a new one instead.
-          </p>
-        )}
-        <div className="field">
-          <label>Amount</label>
-          <input
-            name="amount"
-            type="number"
-            inputMode="decimal"
-            min="0.01"
-            step="0.01"
-            placeholder="₹ 0"
-            defaultValue={e.amount || ""}
-            required
-            autoFocus
-          />
-        </div>
-        <div className="field">
-          <label>Category</label>
-          {visibleCategories.length ? (
-            <div className="chip-group" role="radiogroup" aria-label="Category">
-              {visibleCategories.map((category) => (
-                <label className="chip" key={category.id}>
-                  <input
-                    type="radio"
-                    name="category_id"
-                    value={category.id}
-                    checked={categoryId === category.id}
-                    onChange={() => setCategoryId(category.id)}
-                    required
-                  />
-                  <span>{category.name}</span>
-                </label>
-              ))}
+      <form className="entry-form" onSubmit={submit}>
+        <div className="entry-form-body">
+          {isScanned && (
+            <div className="scan-banner">
+              <ScanLine size={16} />
+              <span>
+                Read from your {e.app || "UPI"} screenshot. Check the details;
+                the screenshot is saved as the receipt.
+              </span>
             </div>
-          ) : (
-            <p className="field-hint">
-              No {entryType} categories yet. A builder can add them under
-              Categories.
+          )}
+          <div className="type-toggle" role="radiogroup" aria-label="Type">
+            <label>
+              <input
+                type="radio"
+                name="entry_type"
+                value="expense"
+                checked={!received}
+                onChange={(event) => handleTypeChange(event.target.value)}
+                disabled={isEdit}
+              />
+              <span>Paid out</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="entry_type"
+                value="income"
+                checked={received}
+                onChange={(event) => handleTypeChange(event.target.value)}
+                disabled={isEdit}
+              />
+              <span>Received</span>
+            </label>
+          </div>
+          {isEdit && (
+            <p className="field-hint entry-type-hint">
+              Paid out can’t be changed to received (or the other way round).
+              Delete this entry and add a new one instead.
             </p>
           )}
-        </div>
-        <div className="form-grid">
+
+          <label className="amount-tile">
+            <span>Amount</span>
+            <span className="amount-tile-input">
+              <span aria-hidden="true">₹</span>
+              <input
+                name="amount"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                placeholder="0"
+                defaultValue={e.amount || ""}
+                required
+                autoFocus
+              />
+            </span>
+          </label>
+
           <div className="field">
-            <label>Date</label>
+            <label htmlFor="entry-paid-to">
+              {received ? "Received from" : "Paid to"}
+            </label>
             <input
-              name="entry_date"
-              type="date"
-              defaultValue={
-                e.entry_date || new Date().toISOString().slice(0, 10)
-              }
-              required
+              id="entry-paid-to"
+              name="paid_to"
+              value={payee}
+              onChange={(event) => setPayee(event.target.value)}
+              placeholder="Name of person or shop"
+              maxLength={120}
+              autoComplete="off"
             />
+            {recent.length > 0 && (
+              <div className="recent-payees">
+                <span>Recent:</span>
+                {recent.map((name) => (
+                  <button
+                    type="button"
+                    key={name}
+                    onClick={() => setPayee(name)}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          <div className="field">
+            <label>Category</label>
+            {visibleCategories.length ? (
+              <div
+                className="chip-group"
+                role="radiogroup"
+                aria-label="Category"
+              >
+                {visibleCategories.map((category) => (
+                  <label className="chip" key={category.id}>
+                    <input
+                      type="radio"
+                      name="category_id"
+                      value={category.id}
+                      checked={categoryId === category.id}
+                      onChange={() => setCategoryId(category.id)}
+                      required
+                    />
+                    <span>
+                      {categoryId === category.id && (
+                        <Check size={16} strokeWidth={2.8} />
+                      )}
+                      {category.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="field-hint">
+                No {received ? "money-received" : "payment"} categories yet. A
+                builder can add them under Categories.
+              </p>
+            )}
+          </div>
+
           <div className="field">
             <label>
-              Paid by <span>Optional</span>
+              How <span>Optional</span>
             </label>
-            <div className="chip-group" role="radiogroup" aria-label="Paid by">
+            <div className="chip-group" role="radiogroup" aria-label="How">
               {PAYMENT_METHODS.map((method) => (
                 <label className="chip" key={method}>
                   <input
@@ -215,74 +257,121 @@ export default function EntryModal({
                     }
                     onChange={() => {}}
                   />
-                  <span>{method}</span>
+                  <span>
+                    {payment === method && (
+                      <Check size={16} strokeWidth={2.8} />
+                    )}
+                    {method}
+                  </span>
                 </label>
               ))}
             </div>
           </div>
-        </div>
-        <div className="field">
-          <label>
-            Description <span>Optional</span>
-          </label>
-          <input
-            name="description"
-            placeholder="What was this for?"
-            defaultValue={e.description || ""}
-          />
-        </div>
-        {!isEdit && (
-          <details className="more-details" open={hasExtras}>
-            <summary>
-              <ChevronDown size={15} />
-              {notesEnabled ? "Add a note or receipt" : "Add a receipt"}
-              {receipt && (
-                <span className="more-details-badge">
-                  <Paperclip size={12} /> 1
-                </span>
-              )}
-            </summary>
-            {notesEnabled && (
+
+          <div className="entry-form-pair">
+            <div className="field">
+              <label htmlFor="entry-date">Date</label>
+              <input
+                id="entry-date"
+                name="entry_date"
+                type="date"
+                defaultValue={
+                  e.entry_date || new Date().toISOString().slice(0, 10)
+                }
+                required
+              />
+            </div>
+            {!isEdit && (
               <div className="field">
                 <label>
-                  Note <span>Optional</span>
+                  Receipt <span>Optional</span>
+                </label>
+                <label className={`receipt-tile ${receipt ? "attached" : ""}`}>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,application/pdf"
+                    onChange={(event) =>
+                      setReceipt(event.target.files?.[0] || null)
+                    }
+                  />
+                  {receipt ? <Paperclip size={18} /> : <Camera size={18} />}
+                  <span>
+                    {receipt ? receipt.name || "Receipt attached" : "Add photo"}
+                  </span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          <details className="more-details" open={hasDetails}>
+            <summary>
+              <ChevronDown size={15} />
+              {notesEnabled && !isEdit
+                ? "Add what it was for or a note"
+                : "Add what it was for"}
+            </summary>
+            <div className="field">
+              <label htmlFor="entry-description">
+                What for <span>Optional</span>
+              </label>
+              <input
+                id="entry-description"
+                name="description"
+                placeholder="e.g. Sand, 2 loads"
+                defaultValue={e.description || ""}
+                maxLength={500}
+              />
+            </div>
+            {notesEnabled && !isEdit && (
+              <div className="field">
+                <label htmlFor="entry-note">
+                  Note for the team <span>Optional</span>
                 </label>
                 <textarea
+                  id="entry-note"
                   name="note"
                   rows="2"
-                  placeholder="Add context for your team..."
+                  placeholder="Anything the builder should know"
                   defaultValue={e.note || ""}
                 />
               </div>
             )}
-            <div className="field">
-              <label>
-                Receipt <span>JPG, PNG or PDF up to 10MB</span>
-              </label>
-              <input
-                name="receipt"
-                type="file"
-                accept="image/jpeg,image/png,application/pdf"
-                onChange={(event) =>
-                  setReceipt(event.target.files?.[0] || null)
-                }
-              />
-              {receipt && (
-                <p className="scan-attach">
-                  <Paperclip size={13} /> {receipt.name || "screenshot"}{" "}
-                  attached
-                </p>
-              )}
-            </div>
           </details>
-        )}
-        <div className="modal-actions">
+          <input
+            type="hidden"
+            name="reference"
+            defaultValue={e.reference || ""}
+          />
+        </div>
+
+        <div className="entry-form-actions">
+          {!isEdit && (
+            <button
+              type="submit"
+              value="again"
+              className="text-button save-again"
+              disabled={saving}
+            >
+              Save and add another
+            </button>
+          )}
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancel
           </button>
-          <button className="primary-button" disabled={saving}>
+          <button
+            type="submit"
+            value="save"
+            className="primary-button"
+            disabled={saving}
+          >
             <Check size={17} />{" "}
-            {saving ? "Saving..." : isEdit ? "Save changes" : "Save entry"}
+            {saving
+              ? "Saving..."
+              : isEdit
+                ? "Save changes"
+                : received
+                  ? "Save money received"
+                  : "Save payment"}
           </button>
         </div>
       </form>

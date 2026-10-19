@@ -433,8 +433,10 @@ def list_ledger(
         query = query.gte("entry_date", from_date.isoformat())
     if to_date:
         query = query.lte("entry_date", to_date.isoformat())
-    if search:
-        query = query.ilike("description", f"%{search}%")
+    # PostgREST's or= syntax treats , ( ) as separators, so drop them.
+    term = re.sub(r"[,()*%]", " ", search or "").strip()
+    if term:
+        query = query.or_(f"description.ilike.*{term}*,paid_to.ilike.*{term}*")
     start = (page - 1) * page_size
     response = query.range(start, start + page_size - 1).execute()
     return {"items": response.data or [], "page": page, "page_size": page_size, "total": response.count or 0}
@@ -465,7 +467,8 @@ def create_ledger_entry(site_id: str, payload: LedgerCreate, user: User):
     entry = response.data[0]
     if payload.note and is_enabled(FEATURE_NOTES):
         db.table("notes").insert({"site_id": site_id, "ledger_entry_id": entry["id"], "created_by": user.id, "content": payload.note}).execute()
-    record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_created", entity_type="ledger_entry", entity_id=entry["id"], description=f"Added {payload.entry_type} for {category['name']}", metadata={"amount": str(payload.amount), "category": category["name"]})
+    who = f" {'to' if payload.entry_type == 'expense' else 'from'} {payload.paid_to}" if payload.paid_to else ""
+    record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_created", entity_type="ledger_entry", entity_id=entry["id"], description=f"Added {payload.entry_type} for {category['name']}{who}", metadata={"amount": str(payload.amount), "category": category["name"], "paid_to": payload.paid_to})
     return entry
 
 
@@ -623,7 +626,7 @@ def export_report(site_id: str, user: User, month: str | None = Query(default=No
         get_admin_client()
         .table("ledger_entries")
         .select(
-            "id,entry_date,entry_type,amount,description,payment_method,created_at,updated_at,categories(name),notes(content),attachments(file_name),profiles!ledger_entries_created_by_fkey(full_name,email)"
+            "id,entry_date,entry_type,amount,paid_to,description,payment_method,reference,created_at,updated_at,categories(name),notes(content),attachments(file_name),profiles!ledger_entries_created_by_fkey(full_name,email)"
         )
         .eq("site_id", site_id)
         .is_("deleted_at", "null")
@@ -639,7 +642,7 @@ def export_report(site_id: str, user: User, month: str | None = Query(default=No
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
-        ["Date", "Type", "Category", "Amount", "Description", "Payment method", "Note", "Added by", "Created at", "Last updated", "Receipt"]
+        ["Date", "Type", "Category", "Paid to / from", "Amount", "Description", "Payment method", "UPI / bank reference", "Note", "Added by", "Created at", "Last updated", "Receipt"]
     )
     for row in rows:
         notes = "; ".join(note.get("content", "") for note in row.get("notes") or [])
@@ -650,9 +653,11 @@ def export_report(site_id: str, user: User, month: str | None = Query(default=No
                 row.get("entry_date", ""),
                 row.get("entry_type", ""),
                 (row.get("categories") or {}).get("name", ""),
+                _csv_cell(row.get("paid_to")),
                 row.get("amount", ""),
-                row.get("description", ""),
+                _csv_cell(row.get("description")),
                 row.get("payment_method", ""),
+                _csv_cell(row.get("reference")),
                 notes,
                 (row.get("profiles") or {}).get("full_name", ""),
                 row.get("created_at", ""),

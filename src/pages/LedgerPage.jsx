@@ -15,6 +15,7 @@ export default function LedgerPage({
   flash,
   features,
   isBuilder,
+  site,
 }) {
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -23,6 +24,8 @@ export default function LedgerPage({
   const [type, setType] = useState("all");
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Bumped after "Save and add another" so the form starts fresh.
+  const [formKey, setFormKey] = useState(0);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -43,6 +46,16 @@ export default function LedgerPage({
       counts[entry.category_id] = (counts[entry.category_id] || 0) + 1;
     });
     return counts;
+  }, [entries]);
+  // Recent names for the "Paid to" / "Received from" suggestions, newest first.
+  const payees = useMemo(() => {
+    const seen = { expense: [], income: [] };
+    entries.forEach((entry) => {
+      const name = entry.paid_to?.trim();
+      const list = seen[entry.entry_type];
+      if (name && list && !list.includes(name)) list.push(name);
+    });
+    return seen;
   }, [entries]);
   // The mobile "Add entry" button links here with ?add=1.
   useEffect(() => {
@@ -91,7 +104,7 @@ export default function LedgerPage({
   const filtered = entries.filter(
     (entry) =>
       (!query ||
-        `${entry.category || entry.categories?.name} ${entry.description || entry.detail}`
+        `${entry.categories?.name} ${entry.paid_to || ""} ${entry.description || ""}`
           .toLowerCase()
           .includes(query.toLowerCase())) &&
       (type === "all" || entry.entry_type === type),
@@ -101,7 +114,7 @@ export default function LedgerPage({
     setEntries(ledger.items);
     outlet?.refreshSummary?.();
   };
-  async function create(event, receiptFile) {
+  async function create(event, receiptFile, { again = false } = {}) {
     event.preventDefault();
     setSaving(true);
     try {
@@ -111,19 +124,25 @@ export default function LedgerPage({
         category_id: form.get("category_id"),
         amount: Number(form.get("amount")),
         entry_date: form.get("entry_date"),
-        description: form.get("description") || "",
+        paid_to: form.get("paid_to")?.trim() || null,
+        description: form.get("description")?.trim() || "",
         payment_method: form.get("payment_method") || null,
-        note: form.get("note") || null,
+        reference: form.get("reference")?.trim() || null,
+        note: form.get("note")?.trim() || null,
       };
       const entry = await api.createLedger(siteId, payload, token);
-      const receipt = receiptFile || form.get("receipt");
-      if (receipt?.size)
-        await api.uploadAttachment(siteId, receipt, token, entry.id);
+      if (receiptFile?.size)
+        await api.uploadAttachment(siteId, receiptFile, token, entry.id);
       await refresh();
-      setShow(false);
       setPrefill(null);
       setPrefillReceipt(null);
-      flash("Ledger entry saved");
+      if (again) setFormKey((key) => key + 1);
+      else setShow(false);
+      flash(
+        payload.entry_type === "income"
+          ? "Money received saved"
+          : "Payment saved",
+      );
     } catch (error) {
       flash(error.message);
     } finally {
@@ -188,14 +207,15 @@ export default function LedgerPage({
         category_id: form.get("category_id"),
         amount: Number(form.get("amount")),
         entry_date: form.get("entry_date"),
-        description: form.get("description") || "",
+        paid_to: form.get("paid_to")?.trim() || "",
+        description: form.get("description")?.trim() || "",
         payment_method: form.get("payment_method") || null,
       };
       await api.updateLedger(siteId, editing.id, payload, token);
       await refresh();
       setShow(false);
       setEditing(null);
-      flash("Ledger entry updated");
+      flash("Entry updated");
     } catch (error) {
       flash(error.message);
     } finally {
@@ -280,8 +300,8 @@ export default function LedgerPage({
               onChange={(event) => setType(event.target.value)}
             >
               <option value="all">All entries</option>
-              <option value="income">Income</option>
-              <option value="expense">Expenses</option>
+              <option value="expense">Paid out</option>
+              <option value="income">Received</option>
             </select>
           </div>
         </div>
@@ -314,8 +334,11 @@ export default function LedgerPage({
       </div>
       {show && (
         <EntryModal
+          key={formKey}
           categories={categories}
           usage={usage}
+          payees={payees}
+          siteName={site?.name}
           onClose={closeEntry}
           onSubmit={handleSubmit}
           saving={saving}

@@ -235,8 +235,6 @@ export function parseUpiReceipt(text, categories = []) {
   const reference = parseReference(raw);
   const category_id = suggestCategory(raw, categories, entry_type);
   const payment_method = /\b(neft|imps|rtgs)\b/i.test(raw) ? "Bank Transfer" : "UPI";
-  const verb = entry_type === "income" ? "UPI from" : "UPI to";
-  const description = `${verb}${counterparty ? ` ${counterparty}` : ""} (${app || "UPI"})`.slice(0, 120);
 
   return {
     entry_type,
@@ -244,10 +242,9 @@ export function parseUpiReceipt(text, categories = []) {
     entry_date,
     category_id,
     payment_method,
-    description,
-    note: reference ? `UPI ref: ${reference}` : "",
+    paid_to: counterparty.slice(0, 120),
     counterparty,
-    reference,
+    reference: reference.slice(0, 120),
     app,
     rawText: raw,
   };

@@ -35,6 +35,11 @@ export const formatDate = (value) => {
 export function EntryRow({ entry, onView, onEdit, onDelete }) {
   const type = entry.entry_type || entry.type;
   const person = entry.profiles?.full_name || entry.profiles?.email || "";
+  // Lead with who was paid; older entries without a payee lead with category.
+  const category = entry.categories?.name;
+  const details = [entry.paid_to && category, entry.description]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div className="entry-row">
       <div className={`entry-type ${type}`}>
@@ -47,11 +52,9 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
         </span>
       </div>
       <div className="entry-info">
-        <strong>
-          {entry.category || entry.categories?.name || "Ledger entry"}
-        </strong>
+        <strong>{entry.paid_to || category || "Entry"}</strong>
         <span>
-          {entry.description || entry.detail || "No description"}
+          {details || "No details"}
           {entry.payment_method && (
             <em className="pay-badge">{entry.payment_method}</em>
           )}

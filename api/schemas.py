@@ -60,6 +60,7 @@ class LedgerCreate(BaseModel):
     category_id: UUID
     amount: Decimal = Field(gt=0)
     entry_date: date
+    paid_to: str | None = Field(default=None, max_length=120)
     description: str = Field(default="", max_length=500)
     payment_method: str | None = Field(default=None, max_length=40)
     reference: str | None = Field(default=None, max_length=120)
@@ -71,6 +72,7 @@ class LedgerUpdate(BaseModel):
     category_id: UUID | None = None
     amount: Decimal | None = Field(default=None, gt=0)
     entry_date: date | None = None
+    paid_to: str | None = Field(default=None, max_length=120)
     description: str | None = Field(default=None, max_length=500)
     payment_method: str | None = Field(default=None, max_length=40)
     reference: str | None = Field(default=None, max_length=120)
