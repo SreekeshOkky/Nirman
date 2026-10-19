@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import calendar
 import csv
@@ -10,10 +10,11 @@ import re
 from typing import Literal
 
 from fastapi.encoders import jsonable_encoder
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 
-from .dependencies import Builder, User, ensure_site_access, ensure_site_active, get_admin_client, maybe_one, require_feature
+from .config import get_settings
+from .dependencies import Builder, User, ensure_site_access, ensure_site_active, get_admin_client, get_auth_client, maybe_one, require_feature
 from .features import FEATURE_AUDIT_LOG, FEATURE_CATEGORIES, FEATURE_NOTES, get_features, is_enabled
 from .schemas import CategoryCreate, CategoryUpdate, InvitationCreate, LedgerCreate, LedgerUpdate, NoteCreate, NoteUpdate, ProfileUpdate, SiteCreate, SiteUpdate
 from .services import record_audit
@@ -281,35 +282,120 @@ def list_members(site_id: str, user: Builder):
     return get_admin_client().table("site_members").select("*, profiles!site_members_user_id_fkey(id,full_name,email,role)").eq("site_id", site_id).order("created_at").execute().data or []
 
 
+def _welcome_url(request: Request) -> str:
+    # Prefer the app's own origin so links work without configuring FRONTEND_URL.
+    # Supabase only redirects to URLs on its allow-list, so this can't be abused.
+    origin = request.headers.get("origin") or get_settings().frontend_url
+    return f"{origin.rstrip('/')}/welcome"
+
+
+def _accept(db, invitation: dict, user_id: str, actor_email: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    db.table("site_members").upsert({"site_id": invitation["site_id"], "user_id": user_id, "role": "supervisor", "invited_by": invitation["invited_by"], "joined_at": now}, on_conflict="site_id,user_id").execute()
+    db.table("invitations").update({"status": "accepted", "accepted_at": now}).eq("id", invitation["id"]).execute()
+    record_audit(db, site_id=invitation["site_id"], actor_id=user_id, action="invitation_accepted", entity_type="invitation", entity_id=invitation["id"], description=f"{actor_email} joined the site")
+
+
+def _is_expired(invitation: dict) -> bool:
+    return datetime.fromisoformat(invitation["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc)
+
+
 @router.post("/sites/{site_id}/members/invite", status_code=status.HTTP_201_CREATED)
-def invite_member(site_id: str, payload: InvitationCreate, user: Builder):
+def invite_member(site_id: str, payload: InvitationCreate, user: Builder, request: Request):
+    """Invite a supervisor. Existing supervisor accounts are added straight away;
+    new people get an email and join the site on their first sign-in."""
     site = ensure_site_access(site_id, user, builder_only=True)
     ensure_site_active(site)
     db = get_admin_client()
-    existing = maybe_one(db.table("invitations").select("id").eq("site_id", site_id).eq("email", payload.email.lower()).eq("status", "pending"))
-    if existing:
-        raise HTTPException(status_code=409, detail="A pending invitation already exists for this email")
-    invitation = db.table("invitations").insert({"site_id": site_id, "email": payload.email.lower(), "invited_by": user.id}).execute().data[0]
+    email = payload.email.strip().lower()
+    if email == user.email.lower():
+        raise HTTPException(status_code=400, detail="You already own this site")
+    if maybe_one(db.table("invitations").select("id").eq("site_id", site_id).eq("email", email).eq("status", "pending")):
+        raise HTTPException(status_code=409, detail="This person has already been invited. Use Resend on the pending invite.")
+    profile = maybe_one(db.table("profiles").select("id,role").eq("email", email))
+    if profile and profile["role"] == "builder":
+        raise HTTPException(status_code=409, detail="This email belongs to a builder account. Supervisors need their own account.")
+    if profile and maybe_one(db.table("site_members").select("id").eq("site_id", site_id).eq("user_id", profile["id"])):
+        raise HTTPException(status_code=409, detail="This person is already on the team")
+    invitation = db.table("invitations").insert({"site_id": site_id, "email": email, "invited_by": user.id}).execute().data[0]
+    if profile:
+        _accept(db, invitation, profile["id"], email)
+        record_audit(db, site_id=site_id, actor_id=user.id, action="member_added", entity_type="invitation", entity_id=invitation["id"], description=f"Added {email} to {site['name']}")
+        return {**invitation, "status": "accepted", "added": True}
     try:
-        get_admin_client().auth.admin.invite_user_by_email(payload.email, options={"data": {"site_id": site_id, "invitation_token": invitation["token"]}})
+        get_admin_client().auth.admin.invite_user_by_email(email, options={"data": {"site_id": site_id, "invitation_token": invitation["token"]}, "redirect_to": _welcome_url(request)})
     except Exception as exc:
         db.table("invitations").update({"status": "cancelled"}).eq("id", invitation["id"]).execute()
         raise HTTPException(status_code=502, detail="Could not send invitation email") from exc
-    record_audit(db, site_id=site_id, actor_id=user.id, action="member_invited", entity_type="invitation", entity_id=invitation["id"], description=f"Invited {payload.email} to {site['name']}")
+    record_audit(db, site_id=site_id, actor_id=user.id, action="member_invited", entity_type="invitation", entity_id=invitation["id"], description=f"Invited {email} to {site['name']}")
+    return {**invitation, "added": False}
+
+
+@router.get("/sites/{site_id}/invitations")
+def list_invitations(site_id: str, user: Builder):
+    ensure_site_access(site_id, user, builder_only=True)
+    return get_admin_client().table("invitations").select("id,email,status,expires_at,created_at").eq("site_id", site_id).eq("status", "pending").order("created_at").execute().data or []
+
+
+def _pending_invitation(db, site_id: str, invitation_id: str) -> dict:
+    invitation = maybe_one(db.table("invitations").select("*").eq("id", invitation_id).eq("site_id", site_id).eq("status", "pending"))
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
     return invitation
+
+
+@router.post("/sites/{site_id}/invitations/{invitation_id}/resend")
+def resend_invitation(site_id: str, invitation_id: str, user: Builder, request: Request):
+    """Extend the invite and email a fresh link to set a password."""
+    ensure_site_active(ensure_site_access(site_id, user, builder_only=True))
+    db = get_admin_client()
+    invitation = _pending_invitation(db, site_id, invitation_id)
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    db.table("invitations").update({"expires_at": expires_at}).eq("id", invitation_id).execute()
+    try:
+        get_auth_client().auth.reset_password_for_email(invitation["email"], {"redirect_to": _welcome_url(request)})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Could not send invitation email") from exc
+    record_audit(db, site_id=site_id, actor_id=user.id, action="invitation_resent", entity_type="invitation", entity_id=invitation_id, description=f"Resent invite to {invitation['email']}")
+    return {**invitation, "expires_at": expires_at}
+
+
+@router.delete("/sites/{site_id}/invitations/{invitation_id}")
+def cancel_invitation(site_id: str, invitation_id: str, user: Builder):
+    ensure_site_access(site_id, user, builder_only=True)
+    db = get_admin_client()
+    invitation = _pending_invitation(db, site_id, invitation_id)
+    db.table("invitations").update({"status": "cancelled"}).eq("id", invitation_id).execute()
+    record_audit(db, site_id=site_id, actor_id=user.id, action="invitation_cancelled", entity_type="invitation", entity_id=invitation_id, description=f"Cancelled invite to {invitation['email']}")
+    return {"id": invitation_id, "cancelled": True}
+
+
+@router.post("/invitations/accept-pending")
+def accept_pending_invitations(user: User):
+    """Join every site this email was invited to. Called by the app after sign-in,
+    so supervisors get access however they reached the app."""
+    if user.role != "supervisor" or not user.email:
+        return {"accepted": []}
+    db = get_admin_client()
+    pending = db.table("invitations").select("*").eq("email", user.email.lower()).eq("status", "pending").execute().data or []
+    accepted = []
+    for invitation in pending:
+        if _is_expired(invitation):
+            continue
+        _accept(db, invitation, user.id, user.email)
+        accepted.append(invitation["site_id"])
+    return {"accepted": accepted}
 
 
 @router.post("/invitations/{token}/accept")
 def accept_invitation(token: str, user: User):
     db = get_admin_client()
     invitation = maybe_one(db.table("invitations").select("*").eq("token", token).eq("status", "pending"))
-    if not invitation or datetime.fromisoformat(invitation["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    if not invitation or _is_expired(invitation):
         raise HTTPException(status_code=404, detail="Invitation is missing or expired")
     if invitation["email"].lower() != user.email.lower():
         raise HTTPException(status_code=403, detail="This invitation belongs to a different email address")
-    db.table("site_members").upsert({"site_id": invitation["site_id"], "user_id": user.id, "role": "supervisor", "invited_by": invitation["invited_by"], "joined_at": datetime.now(timezone.utc).isoformat()}, on_conflict="site_id,user_id").execute()
-    db.table("invitations").update({"status": "accepted", "accepted_at": datetime.now(timezone.utc).isoformat()}).eq("id", invitation["id"]).execute()
-    record_audit(db, site_id=invitation["site_id"], actor_id=user.id, action="invitation_accepted", entity_type="invitation", entity_id=invitation["id"], description=f"{user.email} joined the site")
+    _accept(db, invitation, user.id, user.email)
     return {"site_id": invitation["site_id"], "accepted": True}
 
 

@@ -115,6 +115,8 @@ vercel --prod
 
 echo
 echo "Deploy complete. Finish Supabase Auth redirect configuration:"
-echo "  1. Add the new Vercel URL to supabase/config.toml under additional_redirect_urls."
+echo "  1. Set site_url to the Vercel URL and add \"<vercel-url>/**\" to"
+echo "     additional_redirect_urls in supabase/config.toml (invite and"
+echo "     password-reset emails link to <vercel-url>/welcome)."
 echo "  2. Run: supabase config push"
 echo "  3. Verify sign-up/sign-in at the deployed URL."

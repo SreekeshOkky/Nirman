@@ -10,6 +10,7 @@ export default function AuthPage({
 }) {
   const [mode, setMode] = useState("signin");
   const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
   const signupEnabled = features.signup !== false;
   async function submit(event) {
@@ -18,24 +19,38 @@ export default function AuthPage({
     setLoading(true);
     setMessage("");
     const form = new FormData(event.currentTarget);
-    const result =
-      mode === "signin"
-        ? await supabase.auth.signInWithPassword({
-            email: form.get("email"),
-            password: form.get("password"),
-          })
-        : await supabase.auth.signUp({
-            email: form.get("email"),
-            password: form.get("password"),
-            options: { data: { full_name: form.get("name") } },
-          });
+    const email = form.get("email");
+    let result;
+    if (mode === "signin") {
+      result = await supabase.auth.signInWithPassword({
+        email,
+        password: form.get("password"),
+      });
+    } else if (mode === "reset") {
+      result = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/welcome`,
+      });
+    } else {
+      result = await supabase.auth.signUp({
+        email,
+        password: form.get("password"),
+        options: { data: { full_name: form.get("name") } },
+      });
+    }
     setLoading(false);
+    setIsError(Boolean(result.error));
     setMessage(
       result.error?.message ||
         (mode === "signup"
           ? "Check your email to confirm your account."
-          : "Signed in."),
+          : mode === "reset"
+            ? "If that email has an account, we've sent a link to set a new password."
+            : "Signed in."),
     );
+  }
+  function switchMode(next) {
+    setMode(next);
+    setMessage("");
   }
   return (
     <div className="auth-shell">
@@ -79,14 +94,24 @@ export default function AuthPage({
           ) : (
             <>
               <p className="eyebrow">
-                {mode === "signin" ? "WELCOME BACK" : "GET STARTED"}
+                {mode === "signin"
+                  ? "WELCOME BACK"
+                  : mode === "reset"
+                    ? "FORGOT PASSWORD"
+                    : "GET STARTED"}
               </p>
               <h2>
                 {mode === "signin"
                   ? `Sign in to ${brand.name}`
-                  : "Create your account"}
+                  : mode === "reset"
+                    ? "Reset your password"
+                    : "Create your account"}
               </h2>
-              <p className="auth-subtitle">Track your sites with confidence.</p>
+              <p className="auth-subtitle">
+                {mode === "reset"
+                  ? "Enter your email and we'll send you a link to choose a new password."
+                  : "Track your sites with confidence."}
+              </p>
               <form onSubmit={submit}>
                 {mode === "signup" && (
                   <div className="field">
@@ -103,16 +128,27 @@ export default function AuthPage({
                     required
                   />
                 </div>
-                <div className="field">
-                  <label>Password</label>
-                  <input
-                    name="password"
-                    type="password"
-                    placeholder="At least 6 characters"
-                    minLength="6"
-                    required
-                  />
-                </div>
+                {mode !== "reset" && (
+                  <div className="field">
+                    <label>Password</label>
+                    <input
+                      name="password"
+                      type="password"
+                      placeholder="At least 6 characters"
+                      minLength="6"
+                      required
+                    />
+                    {mode === "signin" && (
+                      <button
+                        type="button"
+                        className="auth-forgot"
+                        onClick={() => switchMode("reset")}
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button
                   className="primary-button auth-submit"
                   disabled={loading}
@@ -121,23 +157,36 @@ export default function AuthPage({
                     ? "Please wait..."
                     : mode === "signin"
                       ? "Sign in"
-                      : "Create account"}
+                      : mode === "reset"
+                        ? "Send reset link"
+                        : "Create account"}
                 </button>
               </form>
-              {message && <p className="auth-message">{message}</p>}
-              {signupEnabled && (
-                <p className="auth-switch">
-                  {mode === "signin"
-                    ? `New to ${brand.name}?`
-                    : "Already have an account?"}{" "}
-                  <button
-                    onClick={() =>
-                      setMode(mode === "signin" ? "signup" : "signin")
-                    }
-                  >
-                    {mode === "signin" ? "Create an account" : "Sign in"}
-                  </button>
+              {message && (
+                <p className={`auth-message ${isError ? "error" : ""}`}>
+                  {message}
                 </p>
+              )}
+              {mode === "reset" ? (
+                <p className="auth-switch">
+                  Remembered it?{" "}
+                  <button onClick={() => switchMode("signin")}>Sign in</button>
+                </p>
+              ) : (
+                signupEnabled && (
+                  <p className="auth-switch">
+                    {mode === "signin"
+                      ? `New to ${brand.name}?`
+                      : "Already have an account?"}{" "}
+                    <button
+                      onClick={() =>
+                        switchMode(mode === "signin" ? "signup" : "signin")
+                      }
+                    >
+                      {mode === "signin" ? "Create an account" : "Sign in"}
+                    </button>
+                  </p>
+                )
               )}
             </>
           )}

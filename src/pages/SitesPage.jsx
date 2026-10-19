@@ -45,6 +45,8 @@ export default function SitesPage({
       setShow(false);
       flash("Site created");
       navigate("/");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }

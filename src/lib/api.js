@@ -98,6 +98,22 @@ export const api = {
       { method: "DELETE" },
       token,
     ),
+  invitations: (siteId, token) =>
+    apiRequest(`/sites/${siteId}/invitations`, {}, token),
+  resendInvitation: (siteId, invitationId, token) =>
+    apiRequest(
+      `/sites/${siteId}/invitations/${invitationId}/resend`,
+      { method: "POST" },
+      token,
+    ),
+  cancelInvitation: (siteId, invitationId, token) =>
+    apiRequest(
+      `/sites/${siteId}/invitations/${invitationId}`,
+      { method: "DELETE" },
+      token,
+    ),
+  acceptPendingInvitations: (token) =>
+    apiRequest("/invitations/accept-pending", { method: "POST" }, token),
   ledger: (siteId, params, token) =>
     apiRequest(
       `/sites/${siteId}/ledger?${new URLSearchParams(params)}`,

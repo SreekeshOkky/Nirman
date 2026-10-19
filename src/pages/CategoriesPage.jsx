@@ -30,14 +30,20 @@ export default function CategoriesPage({ token, flash }) {
       setItems((current) => [...current, category]);
       setShow(false);
       flash("Category added");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
   }
   async function disable(category) {
-    await api.disableCategory(category.id, token);
-    setItems((current) => current.filter((item) => item.id !== category.id));
-    flash("Category disabled");
+    try {
+      await api.disableCategory(category.id, token);
+      setItems((current) => current.filter((item) => item.id !== category.id));
+      flash("Category disabled");
+    } catch (error) {
+      flash(error.message);
+    }
   }
   return (
     <>

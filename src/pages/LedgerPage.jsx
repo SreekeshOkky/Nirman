@@ -7,7 +7,7 @@ import Modal from "../components/Modal";
 import { api } from "../lib/api";
 import { scanUpiScreenshot } from "../lib/upiScan";
 import { takePendingShare, takeSharedFile } from "../lib/shareTarget";
-export default function LedgerPage({ siteId, token, flash, features }) {
+export default function LedgerPage({ siteId, token, flash, features, isBuilder }) {
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +94,8 @@ export default function LedgerPage({ siteId, token, flash, features }) {
       setPrefill(null);
       setPrefillReceipt(null);
       flash("Ledger entry saved");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -162,6 +164,8 @@ export default function LedgerPage({ siteId, token, flash, features }) {
       setShow(false);
       setEditing(null);
       flash("Ledger entry updated");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -174,6 +178,8 @@ export default function LedgerPage({ siteId, token, flash, features }) {
       await api.deleteLedger(siteId, entry.id, token);
       await refresh();
       flash("Ledger entry deleted");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -246,8 +252,8 @@ export default function LedgerPage({ siteId, token, flash, features }) {
               key={entry.id}
               entry={entry}
               onView={setViewing}
-              onEdit={startEdit}
-              onDelete={remove}
+              onEdit={isBuilder ? startEdit : null}
+              onDelete={isBuilder ? remove : null}
             />
           ))}
           {loading ? (

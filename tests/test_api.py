@@ -183,8 +183,18 @@ class _Query:
         self.op = "delete"
         return self
 
+    def upsert(self, row, **_):
+        self.op, self.payload = "upsert", row
+        return self
+
     def execute(self):
         rows = self.db.tables.setdefault(self.table, [])
+        if self.op == "upsert":
+            match = [row for row in rows if row.get("site_id") == self.payload.get("site_id") and row.get("user_id") == self.payload.get("user_id")]
+            if match:
+                match[0].update(self.payload)
+                return _Resp(match)
+            self.op = "insert"
         if self.op == "insert":
             row = {"id": f"{self.table}-{len(rows) + 1}", "token": "tok", **self.payload}
             rows.append(row)
@@ -209,7 +219,7 @@ class _FakeDB:
 
         class _Admin:
             def invite_user_by_email(self, email, options=None):
-                db.invites.append(email)
+                db.invites.append((email, (options or {}).get("redirect_to")))
 
         class _Auth:
             admin = _Admin()
@@ -274,11 +284,69 @@ def test_missing_profile_is_403(monkeypatch):
 
 def test_invite_succeeds_when_no_pending_invitation(fake_db):
     db = fake_db({"sites": [SITE]})
-    response = TestClient(app).post("/api/sites/site-1/members/invite", json={"email": "New@Example.com"})
+    response = TestClient(app).post("/api/sites/site-1/members/invite", json={"email": "New@Example.com"}, headers={"Origin": "https://acme.example"})
 
     assert response.status_code == 201
-    assert db.invites == ["New@Example.com"]
+    assert response.json()["added"] is False
+    assert [email for email, _ in db.invites] == ["new@example.com"]
+    assert db.invites[0][1] == "https://acme.example/welcome"
     assert db.tables["invitations"][0]["email"] == "new@example.com"
+    assert "site_members" not in db.tables
+
+
+def test_invite_adds_existing_supervisor_immediately(fake_db):
+    db = fake_db({"sites": [SITE], "profiles": [SUPERVISOR]})
+    response = TestClient(app).post("/api/sites/site-1/members/invite", json={"email": "s@example.com"})
+
+    assert response.status_code == 201
+    assert response.json()["added"] is True
+    assert db.invites == []
+    assert db.tables["site_members"][0]["user_id"] == "super-1"
+    assert db.tables["invitations"][0]["status"] == "accepted"
+
+
+def test_invite_rejects_builder_accounts_and_duplicates(fake_db):
+    other_builder = {**BUILDER, "id": "builder-2", "email": "b2@example.com"}
+    fake_db(
+        {
+            "sites": [SITE],
+            "profiles": [other_builder, SUPERVISOR],
+            "site_members": [{"id": "m-1", "site_id": "site-1", "user_id": "super-1"}],
+        }
+    )
+    client = TestClient(app)
+
+    assert client.post("/api/sites/site-1/members/invite", json={"email": "b2@example.com"}).status_code == 409
+    assert client.post("/api/sites/site-1/members/invite", json={"email": "s@example.com"}).status_code == 409
+    assert client.post("/api/sites/site-1/members/invite", json={"email": "b@example.com"}).status_code == 400
+
+
+def test_accept_pending_joins_invited_sites_on_sign_in(fake_db):
+    future = "2999-01-01T00:00:00+00:00"
+    db = fake_db(
+        {
+            "sites": [SITE],
+            "invitations": [
+                {"id": "i-1", "site_id": "site-1", "email": "s@example.com", "status": "pending", "invited_by": "builder-1", "expires_at": future},
+                {"id": "i-2", "site_id": "site-2", "email": "s@example.com", "status": "pending", "invited_by": "builder-1", "expires_at": "2000-01-01T00:00:00+00:00"},
+            ],
+        },
+        user=SUPERVISOR,
+    )
+    response = TestClient(app).post("/api/invitations/accept-pending")
+
+    assert response.json() == {"accepted": ["site-1"]}
+    assert [row["site_id"] for row in db.tables["site_members"]] == ["site-1"]
+
+
+def test_pending_invitations_can_be_listed_and_cancelled(fake_db):
+    db = fake_db({"sites": [SITE], "invitations": [{"id": "i-1", "site_id": "site-1", "email": "x@example.com", "status": "pending"}]})
+    client = TestClient(app)
+
+    assert [row["id"] for row in client.get("/api/sites/site-1/invitations").json()] == ["i-1"]
+    assert client.delete("/api/sites/site-1/invitations/i-1").status_code == 200
+    assert db.tables["invitations"][0]["status"] == "cancelled"
+    assert client.get("/api/sites/site-1/invitations").json() == []
 
 
 def test_remove_member_uses_unambiguous_profiles_join(fake_db):

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
-import { supabase } from "./lib/supabase";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { arrivedFromPasswordLink, supabase } from "./lib/supabase";
 import { api } from "./lib/api";
 import { DEFAULT_FEATURES, loadFeatures } from "./lib/features";
 import { brand } from "./lib/brand";
@@ -16,6 +16,7 @@ import TeamPage from "./pages/TeamPage";
 import ActivityPage from "./pages/ActivityPage";
 import SettingsPage from "./pages/SettingsPage";
 import ScanPage from "./pages/ScanPage";
+import SetPasswordPage from "./pages/SetPasswordPage";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -31,17 +32,24 @@ export default function App() {
     monthly: [],
   });
   const [toast, setToast] = useState("");
+  const [needsPassword, setNeedsPassword] = useState(
+    arrivedFromPasswordLink || window.location.pathname === "/welcome",
+  );
+  const navigate = useNavigate();
   const token = session?.access_token;
 
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      if (!data.session) setNeedsPassword(false);
       setAuthLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, next) => {
+      (event, next) => {
         setSession(next);
+        if (event === "PASSWORD_RECOVERY") setNeedsPassword(true);
+        if (event === "SIGNED_OUT") setNeedsPassword(false);
         setAuthLoading(false);
       },
     );
@@ -58,8 +66,11 @@ export default function App() {
       .me(token)
       .then(setProfile)
       .catch((error) => flash(error.message));
+    // Join any sites this account was invited to before loading the site list.
     api
-      .sites(token, { include_archived: true })
+      .acceptPendingInvitations(token)
+      .catch(() => {})
+      .then(() => api.sites(token, { include_archived: true }))
       .then((data) => {
         setSites(data);
         setSiteId(
@@ -85,6 +96,21 @@ export default function App() {
   if (authLoading)
     return <div className="auth-loading">Loading {brand.name}...</div>;
   if (!session) return <AuthPage features={features} />;
+  if (needsPassword) {
+    if (!profile.role)
+      return <div className="auth-loading">Loading {brand.name}...</div>;
+    return (
+      <SetPasswordPage
+        profile={profile}
+        setProfile={setProfile}
+        token={token}
+        onDone={() => {
+          setNeedsPassword(false);
+          navigate("/", { replace: true });
+        }}
+      />
+    );
+  }
 
   const context = {
     token,

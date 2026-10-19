@@ -9,7 +9,13 @@ const formatDate = (value) =>
         timeStyle: "short",
       }).format(new Date(value))
     : "Recently";
-export default function NotesPage({ siteId, token, flash }) {
+export default function NotesPage({
+  siteId,
+  token,
+  flash,
+  isBuilder,
+  profile,
+}) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,12 +43,16 @@ export default function NotesPage({ siteId, token, flash }) {
   async function submit(event) {
     event.preventDefault();
     setSaving(true);
+    // Keep the form: React clears event.currentTarget once we await.
+    const form = event.currentTarget;
     try {
-      const content = new FormData(event.currentTarget).get("content");
+      const content = new FormData(form).get("content");
       const note = await api.createNote(siteId, { content }, token);
       setNotes((current) => [note, ...current]);
-      event.currentTarget.reset();
+      form.reset();
       flash("Note added");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -71,6 +81,8 @@ export default function NotesPage({ siteId, token, flash }) {
       setEditingId(null);
       setDraft("");
       flash("Note updated");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -175,24 +187,26 @@ export default function NotesPage({ siteId, token, flash }) {
                       </>
                     )}
                   </div>
-                  {standalone && !isEditing && (
-                    <div className="note-actions">
-                      <button
-                        className="row-action"
-                        title="Edit note"
-                        onClick={() => startEdit(note)}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        className="row-action danger"
-                        title="Delete note"
-                        onClick={() => remove(note)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  )}
+                  {standalone &&
+                    !isEditing &&
+                    (isBuilder || note.created_by === profile?.id) && (
+                      <div className="note-actions">
+                        <button
+                          className="row-action"
+                          title="Edit note"
+                          onClick={() => startEdit(note)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          className="row-action danger"
+                          title="Delete note"
+                          onClick={() => remove(note)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                 </div>
               );
             })}

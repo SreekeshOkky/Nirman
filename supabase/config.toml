@@ -10,7 +10,7 @@ max_rows = 1000
 enabled = true
 site_url = "http://localhost:5173"
 # Add the deployed Vercel URL to this list before production auth testing.
-additional_redirect_urls = ["http://localhost:5173/**"]
+additional_redirect_urls = ["http://localhost:5173/**", "http://localhost:8080/**"]
 enable_signup = true
 
 [auth.email]
