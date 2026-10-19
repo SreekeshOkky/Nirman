@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   BarChart3,
-  Bell,
   Building2,
   ChevronDown,
   ClipboardList,
@@ -9,7 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  MoreHorizontal,
+  Plus,
   Settings2,
   Users,
 } from "lucide-react";
@@ -136,12 +135,13 @@ export default function AppLayout({
           </button>
         </div>
         <div className="sidebar-user">
-          <div className="avatar avatar-dark">{getInitials(profile?.full_name) || "RK"}</div>
+          <div className="avatar avatar-dark">
+            {getInitials(profile?.full_name) || "?"}
+          </div>
           <div>
             <strong>{profile?.full_name || "Account"}</strong>
             <span>{profile?.role || "user"} account</span>
           </div>
-          <MoreHorizontal size={18} className="muted-icon" />
         </div>
       </aside>
       <main className="main-content">
@@ -155,11 +155,9 @@ export default function AppLayout({
             <strong>{currentPage}</strong>
           </div>
           <div className="top-actions">
-            <button className="icon-button">
-              <Bell size={18} />
-              <span className="notification-dot" />
-            </button>
-            <div className="top-avatar">{getInitials(profile?.full_name) || "RK"}</div>
+            <Link to="/settings" className="top-avatar" title="Settings">
+              {getInitials(profile?.full_name) || "?"}
+            </Link>
           </div>
         </header>
         <div className="page-wrap">
@@ -193,9 +191,6 @@ export default function AppLayout({
                   ))}
                 </select>
               </label>
-              <div className="period-control">
-                <span>Site workspace</span>
-              </div>
             </div>
           )}
           <Outlet
@@ -212,6 +207,11 @@ export default function AppLayout({
           />
         </div>
       </main>
+      {activeSites.length > 0 && location.pathname !== "/settings" && (
+        <Link className="fab" to="/ledger?add=1">
+          <Plus size={18} /> Add entry
+        </Link>
+      )}
       {mobileNav && (
         <button
           className="mobile-overlay"

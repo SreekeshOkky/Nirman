@@ -12,8 +12,30 @@ export const getInitials = (name) => {
 
 export const money = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
+
+// "2026-09" -> "Sep 2026"
+export const formatMonth = (value) => {
+  const [year, month] = `${value || ""}`.split("-").map(Number);
+  if (!year || !month) return value || "";
+  return new Date(year, month - 1, 1).toLocaleDateString("en-IN", {
+    month: "short",
+    year: "numeric",
+  });
+};
+
+// "2026-09-28" -> "28 Sep 2026"
+export const formatDate = (value) => {
+  const [year, month, day] = `${value || ""}`.split("-").map(Number);
+  if (!year || !month || !day) return value || "";
+  return new Date(year, month - 1, day).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
 export function EntryRow({ entry, onView, onEdit, onDelete }) {
   const type = entry.entry_type || entry.type;
+  const person = entry.profiles?.full_name || entry.profiles?.email || "";
   return (
     <div className="entry-row">
       <div className={`entry-type ${type}`}>
@@ -36,12 +58,17 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
           )}
         </span>
       </div>
-      <div className="entry-date">{entry.entry_date}</div>
+      <div className="entry-date">{formatDate(entry.entry_date)}</div>
       <div className="entry-person">
-        <div className={`avatar avatar-${entry.tone || "dark"}`}>
-          {entry.initials || getInitials(entry.person) || "RK"}
-        </div>
-        <span>{entry.person || "You"}</span>
+        {person && (
+          <>
+            <div className="avatar avatar-dark">
+              {getInitials(entry.profiles?.full_name) ||
+                person[0].toUpperCase()}
+            </div>
+            <span>{person}</span>
+          </>
+        )}
       </div>
       <strong className={`entry-amount ${type}`}>
         {type === "income" ? "+" : "-"}

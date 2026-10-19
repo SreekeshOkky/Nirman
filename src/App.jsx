@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { arrivedFromPasswordLink, supabase } from "./lib/supabase";
 import { api } from "./lib/api";
@@ -31,7 +31,8 @@ export default function App() {
     sites: [],
     monthly: [],
   });
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
   const [needsPassword, setNeedsPassword] = useState(
     arrivedFromPasswordLink || window.location.pathname === "/welcome",
   );
@@ -84,9 +85,15 @@ export default function App() {
       .finally(() => setSitesLoading(false));
   }, [token]);
 
-  const flash = (message) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 3000);
+  // flash("Saved") or flash("Deleted", { label: "Undo", onClick }) for a
+  // toast with an action button, which stays up a little longer.
+  const flash = (message, action = null) => {
+    window.clearTimeout(toastTimer.current);
+    setToast({ message, action });
+    toastTimer.current = window.setTimeout(
+      () => setToast(null),
+      action ? 6000 : 3000,
+    );
   };
   const activeSites = sites.filter((item) => item.status !== "archived");
   const site = activeSites.find((item) => item.id === siteId) || null;
@@ -217,9 +224,20 @@ export default function App() {
         </Route>
       </Routes>
       {toast && (
-        <div className="toast">
+        <div className="toast" role="status">
           <span className="toast-check">✓</span>
-          {toast}
+          {toast.message}
+          {toast.action && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                setToast(null);
+                toast.action.onClick();
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       )}
     </>

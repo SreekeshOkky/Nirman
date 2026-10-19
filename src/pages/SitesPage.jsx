@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Archive, Building2, Plus, RotateCcw, ShieldCheck } from "lucide-react";
+import { Archive, Building2, Plus, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { money, PageHeading } from "../components/Shared";
 import SiteModal from "../components/SiteModal";
@@ -126,9 +126,6 @@ export default function SitesPage({
                 </span>
               </label>
             </div>
-            <span className="secure-label">
-              <ShieldCheck size={14} /> RLS protected
-            </span>
           </div>
         </div>
         {visible.length ? (

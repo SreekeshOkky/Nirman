@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { money, PageHeading } from "../components/Shared";
+import { formatMonth, money, PageHeading } from "../components/Shared";
 
 function Metric({ label, value, icon, accent }) {
   return (
@@ -22,11 +22,19 @@ function Metric({ label, value, icon, accent }) {
     </div>
   );
 }
+function greeting(name) {
+  const hour = new Date().getHours();
+  const part = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const first = (name || "").trim().split(/\s+/)[0];
+  return `Good ${part}${first ? `, ${first}` : ""}.`;
+}
+
 export default function DashboardPage({
   overview,
   setOverview,
   token,
   isBuilder,
+  profile,
 }) {
   const totals = overview.totals;
   useEffect(() => {
@@ -44,7 +52,7 @@ export default function DashboardPage({
   return (
     <>
       <PageHeading
-        title="Good morning."
+        title={greeting(profile?.full_name)}
         subtitle="Here’s the overall picture across your construction sites."
       >
         <Link className="primary-button" to="/ledger">
@@ -130,9 +138,17 @@ export default function DashboardPage({
           </div>
         </div>
         <div className="monthly-list">
+          {overview.monthly.length > 0 && (
+            <div className="monthly-row monthly-labels">
+              <span>Month</span>
+              <span>Income</span>
+              <span>Expenses</span>
+              <span>Balance</span>
+            </div>
+          )}
           {overview.monthly.map((row) => (
             <div className="monthly-row" key={row.month}>
-              <span>{row.month}</span>
+              <span>{formatMonth(row.month)}</span>
               <strong className="positive">{money(row.income)}</strong>
               <strong>{money(row.expenses)}</strong>
               <b>{money(row.balance)}</b>

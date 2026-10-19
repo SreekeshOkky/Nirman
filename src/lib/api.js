@@ -140,6 +140,12 @@ export const api = {
       { method: "DELETE" },
       token,
     ),
+  restoreLedger: (siteId, entryId, token) =>
+    apiRequest(
+      `/sites/${siteId}/ledger/${entryId}/restore`,
+      { method: "POST" },
+      token,
+    ),
   summary: (siteId, token) => apiRequest(`/sites/${siteId}/summary`, {}, token),
   reportExportUrl: (siteId) => `${baseUrl}/sites/${siteId}/reports/export`,
   monthly: (siteId, token) =>

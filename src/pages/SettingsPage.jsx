@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, ShieldCheck } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { PageHeading } from "../components/Shared";
 import { api } from "../lib/api";
 
@@ -50,7 +50,11 @@ export default function SettingsPage({ profile, setProfile, token, flash }) {
             </div>
             <div className="field">
               <label>Role</label>
-              <input value={profile.role} disabled title="Role cannot be changed" />
+              <input
+                value={profile.role}
+                disabled
+                title="Role cannot be changed"
+              />
               <p className="field-hint">
                 Your role is fixed and cannot be edited.
               </p>
@@ -58,21 +62,21 @@ export default function SettingsPage({ profile, setProfile, token, flash }) {
             <button
               type="submit"
               className="primary-button"
-              disabled={saving || !name.trim() || name.trim() === profile.full_name}
+              disabled={
+                saving || !name.trim() || name.trim() === profile.full_name
+              }
             >
               <CheckCircle2 size={16} /> {saving ? "Saving…" : "Save name"}
             </button>
           </form>
-          <div className="connected-label">
-            <ShieldCheck size={15} /> Supabase Auth connected
-          </div>
         </div>
         <div className="card form-card">
           <p className="eyebrow">DATA & PRIVACY</p>
-          <h2>Protected workspace</h2>
+          <h2>Who can see your data</h2>
           <p className="settings-copy">
-            Site access and audit history are protected by Supabase Row Level
-            Security.
+            Only you and the supervisors you invite can see a site. Supervisors
+            can add entries and notes, but can’t change or delete past entries.
+            Every change is recorded in the activity log.
           </p>
         </div>
       </div>

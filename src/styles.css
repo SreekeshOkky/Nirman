@@ -1437,7 +1437,8 @@ button {
   .entry-person {
     display: none;
   }
-  .table-header span:nth-child(2) {
+  .table-header span:nth-child(2),
+  .table-header span:nth-child(3) {
     display: none;
   }
 }
@@ -1842,6 +1843,9 @@ div.site-card-main {
   grid-column: 3;
 }
 .table-header span:nth-child(3) {
+  grid-column: 4;
+}
+.table-header span:nth-child(4) {
   grid-column: 5;
   min-width: 48px;
   justify-self: end;
@@ -2645,7 +2649,7 @@ div.site-card-main {
       31px minmax(130px, 1.5fr) minmax(100px, 1fr) 84px
       54px;
   }
-  .table-header span:nth-child(3) {
+  .table-header span:nth-child(4) {
     grid-column: 3;
   }
 }
@@ -2714,4 +2718,142 @@ div.site-card-main {
 }
 .team-pending-head {
   margin-top: 22px;
+}
+.toast-action {
+  margin-left: 6px;
+  color: #ffd2bd;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Entry form: tappable chips for category and payment method. */
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.chip span {
+  display: inline-block;
+  padding: 8px 13px;
+  border: 1px solid #e0e5df;
+  border-radius: 20px;
+  background: #fff;
+  color: #4f5b54;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.chip span:hover {
+  border-color: var(--accent);
+}
+.chip input:checked + span {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+.chip input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.more-details {
+  margin-bottom: 14px;
+}
+.more-details summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 0 12px;
+}
+.more-details summary::-webkit-details-marker {
+  display: none;
+}
+.more-details summary svg {
+  transition: transform var(--transition);
+}
+.more-details[open] summary svg {
+  transform: rotate(180deg);
+}
+.more-details-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--accent-soft);
+  border-radius: 20px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+/* Mobile: floating "Add entry" button. */
+.fab {
+  display: none;
+}
+@media (max-width: 800px) {
+  .fab {
+    position: fixed;
+    right: 18px;
+    bottom: 22px;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 14px 20px;
+    border-radius: 30px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    box-shadow: var(--shadow-lg);
+  }
+  .toast {
+    bottom: 88px;
+  }
+  .page-wrap {
+    padding-bottom: 90px;
+  }
+}
+.primary-button.danger-button {
+  background: var(--danger);
+}
+.primary-button.danger-button:hover {
+  background: #b93d3d;
+}
+.monthly-row.monthly-labels {
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #8f9892;
+  padding: 9px 0;
+}
+.monthly-row.monthly-labels:hover {
+  background: none;
+}
+.monthly-row.monthly-labels span:last-child {
+  text-align: right;
+}
+/* Chips sit inside .field, so undo the generic label styles there. */
+.field label.chip {
+  margin: 0;
+}
+.field .chip span {
+  margin-left: 0;
+  color: #4f5b54;
+  font-size: 13px;
+  font-weight: 500;
+}
+.field .chip input:checked + span {
+  color: var(--accent-strong);
+  font-weight: 600;
 }

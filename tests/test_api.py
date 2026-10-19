@@ -388,3 +388,12 @@ def test_export_filename_uses_site_name(fake_db):
     assert response.status_code == 200
     assert 'filename="tower-a-phase-2-ledger.csv"' in response.headers["content-disposition"]
 
+
+def test_deleted_entry_can_be_restored(fake_db):
+    db = fake_db({"sites": [SITE], "ledger_entries": [{"id": "e-1", "site_id": "site-1", "deleted_at": None}]})
+    client = TestClient(app)
+
+    assert client.post("/api/sites/site-1/ledger/e-1/restore").status_code == 404
+    assert client.delete("/api/sites/site-1/ledger/e-1").status_code == 200
+    assert client.post("/api/sites/site-1/ledger/e-1/restore").status_code == 200
+    assert db.tables["ledger_entries"][0]["deleted_at"] is None

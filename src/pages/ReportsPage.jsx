@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { PageHeading, money, EntryRow } from "../components/Shared";
+import {
+  PageHeading,
+  money,
+  EntryRow,
+  formatMonth,
+} from "../components/Shared";
 import EntryDetailModal from "../components/EntryDetailModal";
 import { api } from "../lib/api";
 export default function ReportsPage({ site, siteId, token }) {
-  const [entries, setEntries] = useState([]);
   const [summary, setSummary] = useState({
     income: 0,
     expenses: 0,
     balance: 0,
+    expense_by_category: [],
   });
   const [monthly, setMonthly] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -20,14 +25,9 @@ export default function ReportsPage({ site, siteId, token }) {
     if (!siteId) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      api.ledger(siteId, {}, token),
-      api.summary(siteId, token),
-      api.monthly(siteId, token),
-    ])
-      .then(([ledger, totals, months]) => {
+    Promise.all([api.summary(siteId, token), api.monthly(siteId, token)])
+      .then(([totals, months]) => {
         if (cancelled) return;
-        setEntries(ledger.items);
         setSummary(totals);
         setMonthly(months);
         if (months.length) setSelectedMonth(months[months.length - 1].month);
@@ -94,13 +94,12 @@ export default function ReportsPage({ site, siteId, token }) {
       </>
     );
   }
-  const expenseByCategory = entries
-    .filter((e) => e.entry_type === "expense")
-    .reduce((acc, entry) => {
-      const key = entry.categories?.name || "Other";
-      acc[key] = (acc[key] || 0) + Number(entry.amount);
-      return acc;
-    }, {});
+  // Totals over every entry (from the server), largest first.
+  const expenseByCategory = Object.fromEntries(
+    (summary.expense_by_category || [])
+      .map((row) => [row.category, Number(row.amount)])
+      .sort((a, b) => b[1] - a[1]),
+  );
   async function download(url, filename) {
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
@@ -198,7 +197,7 @@ export default function ReportsPage({ site, siteId, token }) {
                 >
                   {monthly.map((row) => (
                     <option key={row.month} value={row.month}>
-                      {row.month}
+                      {formatMonth(row.month)}
                     </option>
                   ))}
                 </select>
@@ -217,8 +216,16 @@ export default function ReportsPage({ site, siteId, token }) {
           ) : (
             <>
               {selectedMonthData && (
+                <div className="monthly-row monthly-labels">
+                  <span>Month</span>
+                  <span>Income</span>
+                  <span>Expenses</span>
+                  <span>Balance</span>
+                </div>
+              )}
+              {selectedMonthData && (
                 <div className="monthly-row month-head">
-                  <span>{selectedMonthData.month}</span>
+                  <span>{formatMonth(selectedMonthData.month)}</span>
                   <strong className="positive">
                     {money(selectedMonthData.income)}
                   </strong>
@@ -231,7 +238,7 @@ export default function ReportsPage({ site, siteId, token }) {
                   <div className="empty-state">Loading entries…</div>
                 ) : !monthEntries.length ? (
                   <div className="empty-state">
-                    No entries in {selectedMonth}.
+                    No entries in {formatMonth(selectedMonth)}.
                   </div>
                 ) : (
                   monthEntries.map((entry) => (

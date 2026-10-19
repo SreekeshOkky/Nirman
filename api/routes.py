@@ -424,7 +424,7 @@ def list_ledger(
     page_size: int = Query(default=25, ge=1, le=100),
 ):
     ensure_site_access(site_id, user)
-    query = get_admin_client().table("ledger_entries").select("*, categories(name,type)", count="exact").eq("site_id", site_id).is_("deleted_at", "null").order("entry_date", desc=True)
+    query = get_admin_client().table("ledger_entries").select("*, categories(name,type), profiles!ledger_entries_created_by_fkey(full_name,email)", count="exact").eq("site_id", site_id).is_("deleted_at", "null").order("entry_date", desc=True)
     if entry_type:
         query = query.eq("entry_type", entry_type)
     if category_id:
@@ -513,6 +513,20 @@ def delete_ledger_entry(site_id: str, entry_id: str, user: Builder):
     updated = db.table("ledger_entries").update({"deleted_at": datetime.now(timezone.utc).isoformat(), "updated_by": user.id}).eq("id", entry_id).execute().data[0]
     record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_deleted", entity_type="ledger_entry", entity_id=entry_id, description="Deleted ledger entry", metadata=jsonable_encoder({"deleted_entry": current}))
     return {"id": updated["id"], "deleted": True}
+
+
+@router.post("/sites/{site_id}/ledger/{entry_id}/restore")
+def restore_ledger_entry(site_id: str, entry_id: str, user: Builder):
+    """Undo a delete. Entries are soft-deleted, so this just clears deleted_at."""
+    site = ensure_site_access(site_id, user, builder_only=True)
+    ensure_site_active(site)
+    db = get_admin_client()
+    current = maybe_one(db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id))
+    if not current or not current.get("deleted_at"):
+        raise HTTPException(status_code=404, detail="Deleted entry not found")
+    restored = db.table("ledger_entries").update({"deleted_at": None, "updated_by": user.id}).eq("id", entry_id).execute().data[0]
+    record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_restored", entity_type="ledger_entry", entity_id=entry_id, description="Restored deleted ledger entry")
+    return restored
 
 
 @notes_router.post("/sites/{site_id}/notes", status_code=status.HTTP_201_CREATED)

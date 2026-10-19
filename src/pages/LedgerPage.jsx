@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Filter, Plus, ScanLine, Search, SlidersHorizontal } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Filter, Plus, ScanLine, Search, Trash2 } from "lucide-react";
 import { PageHeading, EntryRow } from "../components/Shared";
 import EntryModal from "../components/EntryModal";
 import EntryDetailModal from "../components/EntryDetailModal";
@@ -22,8 +23,27 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
   const [scanStatus, setScanStatus] = useState("");
   const [prefill, setPrefill] = useState(null);
   const [prefillReceipt, setPrefillReceipt] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const scanInputRef = useRef(null);
   const scanEnabled = features?.scan !== false;
+  // How often each category is used, so the entry form can list them first.
+  const usage = useMemo(() => {
+    const counts = {};
+    entries.forEach((entry) => {
+      counts[entry.category_id] = (counts[entry.category_id] || 0) + 1;
+    });
+    return counts;
+  }, [entries]);
+  // The mobile "Add entry" button links here with ?add=1.
+  useEffect(() => {
+    if (loading || searchParams.get("add") !== "1") return;
+    setSearchParams({}, { replace: true });
+    setEditing(null);
+    setPrefill(null);
+    setPrefillReceipt(null);
+    setShow(true);
+  }, [loading, searchParams]);
   useEffect(() => {
     if (!siteId) return;
     let cancelled = false;
@@ -170,14 +190,28 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
       setSaving(false);
     }
   }
-  async function remove(entry) {
-    if (!window.confirm("Delete this ledger entry? This cannot be undone."))
-      return;
+  function remove(entry) {
+    setConfirmDelete(entry);
+  }
+  async function confirmRemove() {
+    const entry = confirmDelete;
     setSaving(true);
     try {
       await api.deleteLedger(siteId, entry.id, token);
+      setConfirmDelete(null);
       await refresh();
-      flash("Ledger entry deleted");
+      flash("Entry deleted", {
+        label: "Undo",
+        onClick: async () => {
+          try {
+            await api.restoreLedger(siteId, entry.id, token);
+            await refresh();
+            flash("Entry restored");
+          } catch (error) {
+            flash(error.message);
+          }
+        },
+      });
     } catch (error) {
       flash(error.message);
     } finally {
@@ -237,13 +271,11 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
               <option value="expense">Expenses</option>
             </select>
           </div>
-          <button className="filter-button">
-            <SlidersHorizontal size={16} />
-          </button>
         </div>
         <div className="table-header">
           <span>ENTRY</span>
           <span>DATE</span>
+          <span>ADDED BY</span>
           <span>AMOUNT</span>
         </div>
         <div className="ledger-rows">
@@ -259,13 +291,18 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
           {loading ? (
             <div className="empty-state">Loading entries…</div>
           ) : !filtered.length ? (
-            <div className="empty-state">No entries found.</div>
+            <div className="empty-state">
+              {entries.length
+                ? "No entries match your search."
+                : "No entries yet. Tap Add entry to record your first payment."}
+            </div>
           ) : null}
         </div>
       </div>
       {show && (
         <EntryModal
           categories={categories}
+          usage={usage}
           onClose={closeEntry}
           onSubmit={handleSubmit}
           saving={saving}
@@ -274,6 +311,36 @@ export default function LedgerPage({ siteId, token, flash, features, isBuilder }
           receiptFile={editing ? null : prefillReceipt}
           notesEnabled={features?.notes !== false}
         />
+      )}
+      {confirmDelete && (
+        <Modal
+          title="Delete this entry?"
+          subtitle={`${confirmDelete.categories?.name || "Entry"} · ₹${Number(
+            confirmDelete.amount || 0,
+          ).toLocaleString("en-IN")}`}
+          onClose={() => setConfirmDelete(null)}
+        >
+          <p className="field-hint">
+            It will be removed from the ledger and reports. You can undo this
+            right after deleting.
+          </p>
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setConfirmDelete(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="primary-button danger-button"
+              disabled={saving}
+              onClick={confirmRemove}
+            >
+              <Trash2 size={16} /> {saving ? "Deleting..." : "Delete entry"}
+            </button>
+          </div>
+        </Modal>
       )}
       {viewing && (
         <EntryDetailModal
