@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFil
 from fastapi.responses import StreamingResponse
 
 from .config import get_settings
-from .dependencies import Builder, User, ensure_site_access, ensure_site_active, get_admin_client, get_auth_client, maybe_one, require_feature
+from .dependencies import Builder, User, ensure_site_access, ensure_site_active, forget_profile, get_admin_client, get_auth_client, maybe_one, require_feature
 from .features import FEATURE_AUDIT_LOG, FEATURE_CATEGORIES, FEATURE_NOTES, get_features, is_enabled
 from .schemas import CategoryCreate, CategoryUpdate, InvitationCreate, LedgerCreate, LedgerUpdate, NoteCreate, NoteUpdate, ProfileUpdate, SiteCreate, SiteUpdate
 from .services import record_audit
@@ -49,6 +49,7 @@ def update_me(update: ProfileUpdate, user: User):
         .execute()
     )
     profile = (updated.data or [{}])[0]
+    forget_profile(user.id)
     return {
         "id": profile.get("id"),
         "email": profile.get("email") or "",

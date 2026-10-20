@@ -286,11 +286,11 @@ def test_unknown_site_is_404_and_non_member_supervisor_is_403(fake_db):
     assert TestClient(app).get("/api/sites/site-1").status_code == 403
 
 
-def test_missing_profile_is_403(monkeypatch):
+def test_missing_profile_is_403(monkeypatch, signing_key):
     import api.dependencies as dependencies
 
     monkeypatch.setattr(dependencies, "get_admin_client", lambda: _FakeDB({"profiles": []}))
-    response = TestClient(app).get("/api/me", headers={"Authorization": "Bearer t"})
+    response = TestClient(app).get("/api/me", headers={"Authorization": f"Bearer {signing_key()}"})
 
     assert response.status_code == 403
 
@@ -484,3 +484,105 @@ def test_updates_for_supervisor_only_their_missing_receipts(fake_db):
 
     assert data["over_budget"] == [] and data["new_entries"] == []
     assert [m["entry_id"] for m in data["missing_receipts"]] == ["e-1"]
+
+
+# --- Local token verification ------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _fresh_auth_caches():
+    import api.dependencies as dependencies
+    import api.tokens as tokens
+
+    dependencies._profiles.clear()
+    tokens._keys = {}
+    tokens._keys_fetched_at = 0.0
+    yield
+    dependencies._profiles.clear()
+
+
+@pytest.fixture
+def signing_key(monkeypatch):
+    """Publish an EC key as the project's signing key and return a token maker."""
+    import time
+
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from jwt import PyJWK
+    from jwt.algorithms import ECAlgorithm
+
+    import api.tokens as tokens
+
+    private = ec.generate_private_key(ec.SECP256R1())
+    public_jwk = json.loads(ECAlgorithm.to_jwk(private.public_key()))
+    public_jwk.update({"kid": "key-1", "alg": "ES256"})
+    monkeypatch.setattr(tokens, "_keys", {"key-1": PyJWK(public_jwk)})
+    monkeypatch.setattr(tokens, "_keys_fetched_at", time.monotonic())
+    # Never reach the network for keys in tests.
+    monkeypatch.setattr(tokens, "_refresh_keys", lambda: None)
+
+    def make(sub="builder-1", expires_in=3600, kid="key-1", key=private):
+        claims = {"sub": sub, "aud": "authenticated", "email": "b@example.com", "exp": int(time.time()) + expires_in}
+        return jwt.encode(claims, key, algorithm="ES256", headers={"kid": kid})
+
+    return make
+
+
+def _auth_db(monkeypatch, profiles=(BUILDER,)):
+    import api.dependencies as dependencies
+    import api.routes as routes
+
+    db = _FakeDB({"profiles": list(profiles)})
+    calls = []
+    real_get_user = db.auth.get_user
+
+    def counting_get_user(token):
+        calls.append(token)
+        return real_get_user(token)
+
+    db.auth.get_user = counting_get_user
+    monkeypatch.setattr(dependencies, "get_admin_client", lambda: db)
+    monkeypatch.setattr(routes, "get_admin_client", lambda: db)
+    return db, calls
+
+
+def test_valid_token_is_checked_without_calling_supabase_auth(monkeypatch, signing_key):
+    _, calls = _auth_db(monkeypatch)
+    response = TestClient(app).get("/api/me", headers={"Authorization": f"Bearer {signing_key()}"})
+
+    assert response.status_code == 200
+    assert response.json()["role"] == "builder"
+    assert calls == []
+
+
+def test_expired_or_tampered_tokens_are_rejected(monkeypatch, signing_key):
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    _, calls = _auth_db(monkeypatch)
+    client = TestClient(app)
+    expired = signing_key(expires_in=-60)
+    forged = signing_key(key=ec.generate_private_key(ec.SECP256R1()))
+
+    assert client.get("/api/me", headers={"Authorization": f"Bearer {expired}"}).status_code == 401
+    assert client.get("/api/me", headers={"Authorization": f"Bearer {forged}"}).status_code == 401
+    assert client.get("/api/me", headers={"Authorization": "Bearer not-a-jwt"}).status_code == 401
+    assert calls == []
+
+
+def test_unknown_signing_key_falls_back_to_supabase_auth(monkeypatch, signing_key):
+    _, calls = _auth_db(monkeypatch)
+    token = signing_key(kid="rotated-key")
+    response = TestClient(app).get("/api/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    assert calls == [token]
+
+
+def test_profile_cache_is_cleared_when_renaming(monkeypatch, signing_key):
+    _auth_db(monkeypatch)
+    client = TestClient(app)
+    headers = {"Authorization": f"Bearer {signing_key()}"}
+
+    assert client.get("/api/me", headers=headers).json()["full_name"] == "Builder"
+    assert client.patch("/api/me", headers=headers, json={"full_name": "Ravi Kumar"}).status_code == 200
+    assert client.get("/api/me", headers=headers).json()["full_name"] == "Ravi Kumar"

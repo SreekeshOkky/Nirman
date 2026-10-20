@@ -1,8 +1,14 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "regions": [
+    "syd1"
+  ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
     {
       "source": "/((?!assets/|icons/|manifest\\.webmanifest|sw\\.js|workbox-).*)",
       "destination": "/index.html"

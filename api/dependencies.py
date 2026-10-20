@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import threading
+import time
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
@@ -10,6 +12,7 @@ import httpx
 
 from .config import get_settings
 from .features import is_enabled
+from .tokens import InvalidTokenError, verify_token
 
 logger = logging.getLogger("nirmanam.auth")
 
@@ -76,20 +79,59 @@ def maybe_one(query) -> dict | None:
     return response.data if response else None
 
 
+# Profiles change rarely (name edits go through forget_profile), so each warm
+# API instance keeps them briefly instead of reading them on every request.
+PROFILE_TTL = 60
+_profile_lock = threading.Lock()
+_profiles: dict[str, tuple[float, dict]] = {}
+
+
+def _load_profile(user_id: str) -> dict | None:
+    now = time.monotonic()
+    with _profile_lock:
+        cached = _profiles.get(user_id)
+    if cached and now - cached[0] < PROFILE_TTL:
+        return cached[1]
+    profile = maybe_one(get_admin_client().table("profiles").select("id,email,role,full_name").eq("id", user_id))
+    if profile:
+        with _profile_lock:
+            _profiles[user_id] = (now, profile)
+    return profile
+
+
+def forget_profile(user_id: str) -> None:
+    with _profile_lock:
+        _profiles.pop(user_id, None)
+
+
+def _unauthorized(exc: Exception) -> HTTPException:
+    logger.warning("Supabase token validation failed: error_type=%s message=%s", type(exc).__name__, str(exc)[:160])
+    return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired Supabase access token", headers={"WWW-Authenticate": "Bearer"})
+
+
 def get_current_user(authorization: Annotated[str | None, Header()] = None) -> CurrentUser:
     token = _bearer_token(authorization)
+    # Check the signature locally; only ask Supabase Auth when that's not
+    # possible (e.g. a legacy-secret project without SUPABASE_JWT_SECRET set).
     try:
-        auth_user = get_admin_client().auth.get_user(token).user
-    except Exception as exc:
-        logger.warning("Supabase token validation failed: error_type=%s message=%s", type(exc).__name__, str(exc)[:160])
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired Supabase access token", headers={"WWW-Authenticate": "Bearer"}) from exc
+        claims = verify_token(token)
+    except InvalidTokenError as exc:
+        raise _unauthorized(exc) from exc
+    if claims:
+        user_id, token_email = claims["sub"], claims.get("email") or ""
+    else:
+        try:
+            auth_user = get_admin_client().auth.get_user(token).user
+        except Exception as exc:
+            raise _unauthorized(exc) from exc
+        user_id, token_email = auth_user.id, auth_user.email or ""
 
-    profile = maybe_one(get_admin_client().table("profiles").select("id,email,role,full_name").eq("id", auth_user.id))
+    profile = _load_profile(user_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile is not configured")
     return CurrentUser(
         id=profile["id"],
-        email=profile.get("email") or auth_user.email or "",
+        email=profile.get("email") or token_email,
         role=profile["role"],
         full_name=profile.get("full_name") or "",
     )
