@@ -62,6 +62,12 @@ export const api = {
   sites: (token, params) =>
     apiRequest(`/sites?${new URLSearchParams(params || {})}`, {}, token),
   overview: (token) => apiRequest("/overview", {}, token),
+  updates: (token, since) =>
+    apiRequest(
+      `/updates${since ? `?since=${encodeURIComponent(since)}` : ""}`,
+      {},
+      token,
+    ),
   createSite: (data, token) =>
     apiRequest("/sites", { method: "POST", body: JSON.stringify(data) }, token),
   archiveSite: (siteId, token) =>
@@ -98,6 +104,22 @@ export const api = {
       { method: "DELETE" },
       token,
     ),
+  invitations: (siteId, token) =>
+    apiRequest(`/sites/${siteId}/invitations`, {}, token),
+  resendInvitation: (siteId, invitationId, token) =>
+    apiRequest(
+      `/sites/${siteId}/invitations/${invitationId}/resend`,
+      { method: "POST" },
+      token,
+    ),
+  cancelInvitation: (siteId, invitationId, token) =>
+    apiRequest(
+      `/sites/${siteId}/invitations/${invitationId}`,
+      { method: "DELETE" },
+      token,
+    ),
+  acceptPendingInvitations: (token) =>
+    apiRequest("/invitations/accept-pending", { method: "POST" }, token),
   ledger: (siteId, params, token) =>
     apiRequest(
       `/sites/${siteId}/ledger?${new URLSearchParams(params)}`,
@@ -122,6 +144,12 @@ export const api = {
     apiRequest(
       `/sites/${siteId}/ledger/${entryId}`,
       { method: "DELETE" },
+      token,
+    ),
+  restoreLedger: (siteId, entryId, token) =>
+    apiRequest(
+      `/sites/${siteId}/ledger/${entryId}/restore`,
+      { method: "POST" },
       token,
     ),
   summary: (siteId, token) => apiRequest(`/sites/${siteId}/summary`, {}, token),

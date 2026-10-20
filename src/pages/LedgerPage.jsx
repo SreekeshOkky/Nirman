@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Filter, Plus, ScanLine, Search, SlidersHorizontal } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useOutletContext, useSearchParams } from "react-router-dom";
+import { Filter, Plus, ScanLine, Search, Trash2 } from "lucide-react";
 import { PageHeading, EntryRow } from "../components/Shared";
 import EntryModal from "../components/EntryModal";
 import EntryDetailModal from "../components/EntryDetailModal";
@@ -7,7 +8,16 @@ import Modal from "../components/Modal";
 import { api } from "../lib/api";
 import { scanUpiScreenshot } from "../lib/upiScan";
 import { takePendingShare, takeSharedFile } from "../lib/shareTarget";
-export default function LedgerPage({ siteId, token, flash, features }) {
+export default function LedgerPage({
+  embedded = false,
+  siteId,
+  token,
+  flash,
+  features,
+  isBuilder,
+  site,
+  refreshUpdates,
+}) {
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +25,8 @@ export default function LedgerPage({ siteId, token, flash, features }) {
   const [type, setType] = useState("all");
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Bumped after "Save and add another" so the form starts fresh.
+  const [formKey, setFormKey] = useState(0);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -22,8 +34,46 @@ export default function LedgerPage({ siteId, token, flash, features }) {
   const [scanStatus, setScanStatus] = useState("");
   const [prefill, setPrefill] = useState(null);
   const [prefillReceipt, setPrefillReceipt] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Inside a site page: lets the header's budget figures follow our changes.
+  const outlet = useOutletContext();
   const scanInputRef = useRef(null);
   const scanEnabled = features?.scan !== false;
+  // How often each category is used, so the entry form can list them first.
+  const usage = useMemo(() => {
+    const counts = {};
+    entries.forEach((entry) => {
+      counts[entry.category_id] = (counts[entry.category_id] || 0) + 1;
+    });
+    return counts;
+  }, [entries]);
+  // Recent names for the "Paid to" / "Received from" suggestions, newest first.
+  const payees = useMemo(() => {
+    const seen = { expense: [], income: [] };
+    entries.forEach((entry) => {
+      const name = entry.paid_to?.trim();
+      const list = seen[entry.entry_type];
+      if (name && list && !list.includes(name)) list.push(name);
+    });
+    return seen;
+  }, [entries]);
+  // "Add" buttons link here with ?add=1; Updates links to one entry with
+  // ?view=<id> (e.g. to add a missing receipt).
+  useEffect(() => {
+    if (loading) return;
+    const viewId = searchParams.get("view");
+    if (searchParams.get("add") !== "1" && !viewId) return;
+    setSearchParams({}, { replace: true });
+    if (viewId) {
+      setViewing({ id: viewId });
+      return;
+    }
+    setEditing(null);
+    setPrefill(null);
+    setPrefillReceipt(null);
+    setShow(true);
+  }, [loading, searchParams]);
   useEffect(() => {
     if (!siteId) return;
     let cancelled = false;
@@ -62,7 +112,7 @@ export default function LedgerPage({ siteId, token, flash, features }) {
   const filtered = entries.filter(
     (entry) =>
       (!query ||
-        `${entry.category || entry.categories?.name} ${entry.description || entry.detail}`
+        `${entry.categories?.name} ${entry.paid_to || ""} ${entry.description || ""}`
           .toLowerCase()
           .includes(query.toLowerCase())) &&
       (type === "all" || entry.entry_type === type),
@@ -70,8 +120,10 @@ export default function LedgerPage({ siteId, token, flash, features }) {
   const refresh = async () => {
     const ledger = await api.ledger(siteId, {}, token);
     setEntries(ledger.items);
+    outlet?.refreshSummary?.();
+    refreshUpdates?.();
   };
-  async function create(event, receiptFile) {
+  async function create(event, receiptFile, { again = false } = {}) {
     event.preventDefault();
     setSaving(true);
     try {
@@ -81,19 +133,27 @@ export default function LedgerPage({ siteId, token, flash, features }) {
         category_id: form.get("category_id"),
         amount: Number(form.get("amount")),
         entry_date: form.get("entry_date"),
-        description: form.get("description") || "",
+        paid_to: form.get("paid_to")?.trim() || null,
+        description: form.get("description")?.trim() || "",
         payment_method: form.get("payment_method") || null,
-        note: form.get("note") || null,
+        reference: form.get("reference")?.trim() || null,
+        note: form.get("note")?.trim() || null,
       };
       const entry = await api.createLedger(siteId, payload, token);
-      const receipt = receiptFile || form.get("receipt");
-      if (receipt?.size)
-        await api.uploadAttachment(siteId, receipt, token, entry.id);
+      if (receiptFile?.size)
+        await api.uploadAttachment(siteId, receiptFile, token, entry.id);
       await refresh();
-      setShow(false);
       setPrefill(null);
       setPrefillReceipt(null);
-      flash("Ledger entry saved");
+      if (again) setFormKey((key) => key + 1);
+      else setShow(false);
+      flash(
+        payload.entry_type === "income"
+          ? "Money received saved"
+          : "Payment saved",
+      );
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -124,7 +184,9 @@ export default function LedgerPage({ siteId, token, flash, features }) {
           setScanProgress(message.progress || 0);
         } else if (message?.status) {
           setScanStatus(
-            message.status.charAt(0).toUpperCase() + message.status.slice(1) + "…",
+            message.status.charAt(0).toUpperCase() +
+              message.status.slice(1) +
+              "…",
           );
         }
       });
@@ -154,26 +216,45 @@ export default function LedgerPage({ siteId, token, flash, features }) {
         category_id: form.get("category_id"),
         amount: Number(form.get("amount")),
         entry_date: form.get("entry_date"),
-        description: form.get("description") || "",
+        paid_to: form.get("paid_to")?.trim() || "",
+        description: form.get("description")?.trim() || "",
         payment_method: form.get("payment_method") || null,
       };
       await api.updateLedger(siteId, editing.id, payload, token);
       await refresh();
       setShow(false);
       setEditing(null);
-      flash("Ledger entry updated");
+      flash("Entry updated");
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
   }
-  async function remove(entry) {
-    if (!window.confirm("Delete this ledger entry? This cannot be undone."))
-      return;
+  function remove(entry) {
+    setConfirmDelete(entry);
+  }
+  async function confirmRemove() {
+    const entry = confirmDelete;
     setSaving(true);
     try {
       await api.deleteLedger(siteId, entry.id, token);
+      setConfirmDelete(null);
       await refresh();
-      flash("Ledger entry deleted");
+      flash("Entry deleted", {
+        label: "Undo",
+        onClick: async () => {
+          try {
+            await api.restoreLedger(siteId, entry.id, token);
+            await refresh();
+            flash("Entry restored");
+          } catch (error) {
+            flash(error.message);
+          }
+        },
+      });
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -182,12 +263,13 @@ export default function LedgerPage({ siteId, token, flash, features }) {
   return (
     <>
       <PageHeading
+        embedded={embedded}
         title="Ledger"
         subtitle="Track every rupee moving through this site."
       >
         {scanEnabled && (
           <button className="secondary-button" onClick={openScan}>
-            <ScanLine size={16} /> Scan UPI screenshot
+            <ScanLine size={16} /> Scan UPI
           </button>
         )}
         <button
@@ -227,17 +309,15 @@ export default function LedgerPage({ siteId, token, flash, features }) {
               onChange={(event) => setType(event.target.value)}
             >
               <option value="all">All entries</option>
-              <option value="income">Income</option>
-              <option value="expense">Expenses</option>
+              <option value="expense">Paid out</option>
+              <option value="income">Received</option>
             </select>
           </div>
-          <button className="filter-button">
-            <SlidersHorizontal size={16} />
-          </button>
         </div>
         <div className="table-header">
           <span>ENTRY</span>
           <span>DATE</span>
+          <span>ADDED BY</span>
           <span>AMOUNT</span>
         </div>
         <div className="ledger-rows">
@@ -246,20 +326,28 @@ export default function LedgerPage({ siteId, token, flash, features }) {
               key={entry.id}
               entry={entry}
               onView={setViewing}
-              onEdit={startEdit}
-              onDelete={remove}
+              onEdit={isBuilder ? startEdit : null}
+              onDelete={isBuilder ? remove : null}
             />
           ))}
           {loading ? (
             <div className="empty-state">Loading entries…</div>
           ) : !filtered.length ? (
-            <div className="empty-state">No entries found.</div>
+            <div className="empty-state">
+              {entries.length
+                ? "No entries match your search."
+                : "No entries yet. Tap Add entry to record your first payment."}
+            </div>
           ) : null}
         </div>
       </div>
       {show && (
         <EntryModal
+          key={formKey}
           categories={categories}
+          usage={usage}
+          payees={payees}
+          siteName={site?.name}
           onClose={closeEntry}
           onSubmit={handleSubmit}
           saving={saving}
@@ -269,11 +357,46 @@ export default function LedgerPage({ siteId, token, flash, features }) {
           notesEnabled={features?.notes !== false}
         />
       )}
+      {confirmDelete && (
+        <Modal
+          title="Delete this entry?"
+          subtitle={`${confirmDelete.categories?.name || "Entry"} · ₹${Number(
+            confirmDelete.amount || 0,
+          ).toLocaleString("en-IN")}`}
+          onClose={() => setConfirmDelete(null)}
+        >
+          <p className="field-hint">
+            It will be removed from the ledger and reports. You can undo this
+            right after deleting.
+          </p>
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setConfirmDelete(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="primary-button danger-button"
+              disabled={saving}
+              onClick={confirmRemove}
+            >
+              <Trash2 size={16} /> {saving ? "Deleting..." : "Delete entry"}
+            </button>
+          </div>
+        </Modal>
+      )}
       {viewing && (
         <EntryDetailModal
           entryId={viewing.id}
           siteId={siteId}
           token={token}
+          canAddReceipt={site?.status !== "archived"}
+          onReceiptAdded={() => {
+            flash("Receipt added");
+            refreshUpdates?.();
+          }}
           onClose={() => setViewing(null)}
         />
       )}
@@ -285,7 +408,9 @@ export default function LedgerPage({ siteId, token, flash, features }) {
         >
           <div className="scan-progress">
             <div className="scan-progress-track">
-              <i style={{ width: `${Math.round((scanProgress || 0) * 100)}%` }} />
+              <i
+                style={{ width: `${Math.round((scanProgress || 0) * 100)}%` }}
+              />
             </div>
             <p className="scan-status">{scanStatus || "Working…"}</p>
             <p className="field-hint">

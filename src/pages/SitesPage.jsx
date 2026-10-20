@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Archive, Building2, Plus, RotateCcw, ShieldCheck } from "lucide-react";
+import { Archive, Building2, Plus, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { money, PageHeading } from "../components/Shared";
 import SiteModal from "../components/SiteModal";
@@ -44,7 +44,9 @@ export default function SitesPage({
       setSiteId(site.id);
       setShow(false);
       flash("Site created");
-      navigate("/");
+      navigate(`/sites/${site.id}`);
+    } catch (error) {
+      flash(error.message);
     } finally {
       setSaving(false);
     }
@@ -82,8 +84,8 @@ export default function SitesPage({
   return (
     <>
       <PageHeading
-        title="Sites"
-        subtitle="Your construction projects, in one place."
+        title="All sites"
+        subtitle="Every site, including finished ones you can reactivate."
       >
         {isBuilder && (
           <button className="primary-button" onClick={() => setShow(true)}>
@@ -124,9 +126,6 @@ export default function SitesPage({
                 </span>
               </label>
             </div>
-            <span className="secure-label">
-              <ShieldCheck size={14} /> RLS protected
-            </span>
           </div>
         </div>
         {visible.length ? (
@@ -147,7 +146,7 @@ export default function SitesPage({
                       className="site-card-main"
                       onClick={() => {
                         setSiteId(site.id);
-                        navigate("/reports");
+                        navigate(`/sites/${site.id}`);
                       }}
                     >
                       <CardBody site={site} />

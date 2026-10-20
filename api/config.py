@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_anon_key: str
     supabase_secret_key: str
+    # Only for projects still on the legacy shared JWT secret; projects with
+    # published signing keys are verified without it.
+    supabase_jwt_secret: str | None = None
     frontend_url: str = "http://localhost:5173"
     api_prefix: str = "/api"
     # JSON object of feature-flag overrides, e.g. '{"audit_log": false}'

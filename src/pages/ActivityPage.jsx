@@ -20,7 +20,7 @@ export default function ActivityPage({ token }) {
     <>
       <PageHeading
         title="Activity log"
-        subtitle="Immutable history across all your sites."
+        subtitle="A record of every change across your sites. It can’t be edited or deleted."
       />
       <div className="card activity-card full-card">
         <div className="card-head">
@@ -38,7 +38,8 @@ export default function ActivityPage({ token }) {
               <div className="avatar avatar-dark">
                 {getInitials(item.profiles?.full_name) ||
                   getInitials(item.actor) ||
-                  "RK"}
+                  item.profiles?.email?.[0]?.toUpperCase() ||
+                  "?"}
               </div>
               <div className="activity-copy">
                 <div>

@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { takeSharedFile } from "../lib/shareTarget";
 
 // Landing route for the Web Share Target. Reads the shared screenshot from the
-// cache (written by the service worker) and hands off to the Ledger page, which
+// cache (written by the service worker) and hands off to the site ledger, which
 // opens the review form.
 export default function ScanPage() {
   const [ready, setReady] = useState(false);
@@ -17,5 +17,5 @@ export default function ScanPage() {
     };
   }, []);
   if (!ready) return <div className="auth-loading">Preparing your screenshot…</div>;
-  return <Navigate to="/ledger" replace />;
+  return <Navigate to="/add?shared=1" replace />;
 }

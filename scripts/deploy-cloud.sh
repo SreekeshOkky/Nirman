@@ -110,11 +110,38 @@ if [[ -f .env ]]; then
   done
 fi
 
+# Run the API in the Vercel region closest to the database: every request
+# makes several database calls, so distance between them adds up fast.
+case "$REGION" in
+  us-east-1) VERCEL_REGION=iad1 ;; us-east-2) VERCEL_REGION=cle1 ;;
+  us-west-1) VERCEL_REGION=sfo1 ;; us-west-2) VERCEL_REGION=pdx1 ;;
+  ca-central-1) VERCEL_REGION=yul1 ;; sa-east-1) VERCEL_REGION=gru1 ;;
+  eu-west-1) VERCEL_REGION=dub1 ;; eu-west-2) VERCEL_REGION=lhr1 ;;
+  eu-west-3) VERCEL_REGION=cdg1 ;; eu-central-1) VERCEL_REGION=fra1 ;;
+  eu-north-1) VERCEL_REGION=arn1 ;; ap-south-1) VERCEL_REGION=bom1 ;;
+  ap-southeast-1) VERCEL_REGION=sin1 ;; ap-southeast-2) VERCEL_REGION=syd1 ;;
+  ap-northeast-1) VERCEL_REGION=hnd1 ;; ap-northeast-2) VERCEL_REGION=icn1 ;;
+  *) VERCEL_REGION="" ;;
+esac
+if [[ -n "$VERCEL_REGION" ]]; then
+  echo "==> Running the API in Vercel region $VERCEL_REGION (next to $REGION)"
+  VERCEL_REGION="$VERCEL_REGION" python3 - <<'PY'
+import json, os
+config = json.load(open("vercel.json"))
+config["regions"] = [os.environ["VERCEL_REGION"]]
+open("vercel.json", "w").write(json.dumps(config, indent=2) + "\n")
+PY
+else
+  echo "! No Vercel region mapped for $REGION; set \"regions\" in vercel.json by hand."
+fi
+
 echo "==> Deploying to production"
 vercel --prod
 
 echo
 echo "Deploy complete. Finish Supabase Auth redirect configuration:"
-echo "  1. Add the new Vercel URL to supabase/config.toml under additional_redirect_urls."
+echo "  1. Set site_url to the Vercel URL and add \"<vercel-url>/**\" to"
+echo "     additional_redirect_urls in supabase/config.toml (invite and"
+echo "     password-reset emails link to <vercel-url>/welcome)."
 echo "  2. Run: supabase config push"
 echo "  3. Verify sign-up/sign-in at the deployed URL."

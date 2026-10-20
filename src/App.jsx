@@ -1,12 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
-import { supabase } from "./lib/supabase";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import { arrivedFromPasswordLink, supabase } from "./lib/supabase";
 import { api } from "./lib/api";
 import { DEFAULT_FEATURES, loadFeatures } from "./lib/features";
 import { brand } from "./lib/brand";
 import AppLayout from "./components/AppLayout";
 import AuthPage from "./pages/AuthPage";
-import DashboardPage from "./pages/DashboardPage";
 import SitesPage from "./pages/SitesPage";
 import LedgerPage from "./pages/LedgerPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -16,6 +21,13 @@ import TeamPage from "./pages/TeamPage";
 import ActivityPage from "./pages/ActivityPage";
 import SettingsPage from "./pages/SettingsPage";
 import ScanPage from "./pages/ScanPage";
+import SetPasswordPage from "./pages/SetPasswordPage";
+import HomePage from "./pages/HomePage";
+import SitePage from "./pages/SitePage";
+import MePage from "./pages/MePage";
+import AddEntryPage from "./pages/AddEntryPage";
+import UpdatesPage from "./pages/UpdatesPage";
+import { updatesSeenAt } from "./lib/updates";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -30,18 +42,44 @@ export default function App() {
     sites: [],
     monthly: [],
   });
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
+  const [needsPassword, setNeedsPassword] = useState(
+    arrivedFromPasswordLink || window.location.pathname === "/welcome",
+  );
+  const [updates, setUpdates] = useState(null);
+  const updatesFetchedAt = useRef(0);
+  const navigate = useNavigate();
+  const location = useLocation();
   const token = session?.access_token;
+
+  // What needs attention (badge counts, home panel, Updates page).
+  const refreshUpdates = useCallback(() => {
+    if (!token) return;
+    updatesFetchedAt.current = Date.now();
+    api
+      .updates(token, updatesSeenAt())
+      .then(setUpdates)
+      .catch(() => {});
+  }, [token]);
+  // Refresh on sign-in and when moving around, at most every 30 seconds.
+  useEffect(() => {
+    if (token && Date.now() - updatesFetchedAt.current > 30000)
+      refreshUpdates();
+  }, [token, location.pathname, refreshUpdates]);
 
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      if (!data.session) setNeedsPassword(false);
       setAuthLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, next) => {
+      (event, next) => {
         setSession(next);
+        if (event === "PASSWORD_RECOVERY") setNeedsPassword(true);
+        if (event === "SIGNED_OUT") setNeedsPassword(false);
         setAuthLoading(false);
       },
     );
@@ -58,8 +96,11 @@ export default function App() {
       .me(token)
       .then(setProfile)
       .catch((error) => flash(error.message));
+    // Join any sites this account was invited to before loading the site list.
     api
-      .sites(token, { include_archived: true })
+      .acceptPendingInvitations(token)
+      .catch(() => {})
+      .then(() => api.sites(token, { include_archived: true }))
       .then((data) => {
         setSites(data);
         setSiteId(
@@ -73,18 +114,39 @@ export default function App() {
       .finally(() => setSitesLoading(false));
   }, [token]);
 
-  const flash = (message) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 3000);
+  // flash("Saved") or flash("Deleted", { label: "Undo", onClick }) for a
+  // toast with an action button, which stays up a little longer.
+  const flash = (message, action = null) => {
+    window.clearTimeout(toastTimer.current);
+    setToast({ message, action });
+    toastTimer.current = window.setTimeout(
+      () => setToast(null),
+      action ? 6000 : 3000,
+    );
   };
   const activeSites = sites.filter((item) => item.status !== "archived");
-  const site = activeSites.find((item) => item.id === siteId) || null;
+  const site = sites.find((item) => item.id === siteId) || null;
   const isBuilder = profile.role === "builder";
 
   if (!supabase) return <AuthPage configurationMissing features={features} />;
   if (authLoading)
     return <div className="auth-loading">Loading {brand.name}...</div>;
   if (!session) return <AuthPage features={features} />;
+  if (needsPassword) {
+    if (!profile.role)
+      return <div className="auth-loading">Loading {brand.name}...</div>;
+    return (
+      <SetPasswordPage
+        profile={profile}
+        setProfile={setProfile}
+        token={token}
+        onDone={() => {
+          setNeedsPassword(false);
+          navigate("/", { replace: true });
+        }}
+      />
+    );
+  }
 
   const context = {
     token,
@@ -101,6 +163,8 @@ export default function App() {
     isBuilder,
     features,
     flash,
+    updates,
+    refreshUpdates,
   };
   const featureRoute = (flag, node) =>
     features[flag] === false ? <Navigate to="/" replace /> : node;
@@ -109,52 +173,70 @@ export default function App() {
       <Routes>
         <Route path="scan" element={<ScanPage />} />
         <Route element={<AppLayout {...context} />}>
-          <Route index element={<DashboardPage {...context} />} />
+          <Route
+            index
+            element={
+              sitesLoading || !profile.role ? (
+                <div className="auth-loading">Loading...</div>
+              ) : !isBuilder && activeSites.length === 1 ? (
+                // A supervisor with one site goes straight to it.
+                <Navigate to={`/sites/${activeSites[0].id}`} replace />
+              ) : (
+                <HomePage {...context} />
+              )
+            }
+          />
           <Route path="sites" element={<SitesPage {...context} />} />
           <Route
-            path="ledger"
+            path="sites/:siteId"
+            element={<SitePage {...context} sitesLoading={sitesLoading} />}
+          >
+            <Route index element={<LedgerPage {...context} embedded />} />
+            <Route
+              path="summary"
+              element={
+                isBuilder ? (
+                  <ReportsPage {...context} embedded />
+                ) : (
+                  <Navigate to=".." replace />
+                )
+              }
+            />
+            <Route
+              path="notes"
+              element={featureRoute(
+                "notes",
+                <NotesPage {...context} embedded />,
+              )}
+            />
+            <Route
+              path="team"
+              element={
+                isBuilder ? (
+                  <TeamPage {...context} embedded />
+                ) : (
+                  <Navigate to=".." replace />
+                )
+              }
+            />
+          </Route>
+          <Route
+            path="add"
             element={
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site ? (
-                <LedgerPage {...context} />
-              ) : (
-                <Navigate to="/sites" replace />
-              )
+              <AddEntryPage
+                activeSites={activeSites}
+                sitesLoading={sitesLoading}
+              />
             }
           />
-          <Route
-            path="reports"
-            element={
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site ? (
-                <ReportsPage {...context} />
-              ) : (
-                <Navigate to="/sites" replace />
-              )
-            }
-          />
-          <Route
-            path="notes"
-            element={featureRoute(
-              "notes",
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site ? (
-                <NotesPage {...context} />
-              ) : (
-                <Navigate to="/sites" replace />
-              ),
-            )}
-          />
+          <Route path="updates" element={<UpdatesPage {...context} />} />
+          <Route path="me" element={<MePage {...context} />} />
+          <Route path="settings" element={<SettingsPage {...context} />} />
           <Route
             path="categories"
             element={featureRoute(
               "categories",
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site && isBuilder ? (
+              isBuilder ? (
                 <CategoriesPage {...context} />
               ) : (
                 <Navigate to="/" replace />
@@ -162,38 +244,60 @@ export default function App() {
             )}
           />
           <Route
-            path="team"
-            element={
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site && isBuilder ? (
-                <TeamPage {...context} />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
-          />
-          <Route
             path="activity"
             element={featureRoute(
               "audit_log",
-              sitesLoading ? (
-                <div className="auth-loading">Loading...</div>
-              ) : site && isBuilder ? (
+              isBuilder ? (
                 <ActivityPage {...context} />
               ) : (
                 <Navigate to="/" replace />
               ),
             )}
           />
-          <Route path="settings" element={<SettingsPage {...context} />} />
+          {/* Old addresses from before sites had their own pages. */}
+          {[
+            ["ledger", ""],
+            ["reports", "/summary"],
+            ["notes", "/notes"],
+            ["team", "/team"],
+          ].map(([path, tab]) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                sitesLoading ? (
+                  <div className="auth-loading">Loading...</div>
+                ) : (
+                  <Navigate
+                    to={
+                      site || activeSites[0]
+                        ? `/sites/${(site || activeSites[0]).id}${tab}`
+                        : "/"
+                    }
+                    replace
+                  />
+                )
+              }
+            />
+          ))}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
       {toast && (
-        <div className="toast">
+        <div className="toast" role="status">
           <span className="toast-check">✓</span>
-          {toast}
+          {toast.message}
+          {toast.action && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                setToast(null);
+                toast.action.onClick();
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       )}
     </>

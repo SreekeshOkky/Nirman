@@ -32,7 +32,7 @@ Ask the user for:
 | --- | --- | --- |
 | Product name | `VITE_BRAND_NAME` | `Nirmanam` |
 | Logo URL | `VITE_BRAND_LOGO` | built-in mark |
-| Accent color (hex) | `VITE_THEME_ACCENT` | `#ef6f39` |
+| Accent color (hex) | `VITE_THEME_ACCENT` | `#b8481a` |
 
 Apply them with:
 
@@ -87,6 +87,11 @@ What it does: `supabase login` → create a new Supabase project (asks for a nam
 database password, region, and org) → apply migrations → fetch API keys → seed
 the builder → `vercel login` → create/link a Vercel project → set all env vars
 (brand, feature flags, Supabase keys, `VITE_API_URL=/api`) → `vercel --prod`.
+
+The API runs in the Vercel region nearest the Supabase region (the script
+sets `regions` in `vercel.json`; the repo default is `syd1` for a Sydney
+database). Keep them together: each API request makes several database calls,
+so a cross-continent gap makes every page slow.
 
 The script pauses for interactive logins and for any values it needs that were
 not supplied as arguments/`read` prompts. After the first deploy, run the final

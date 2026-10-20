@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 from datetime import date
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import calendar
 import csv
 import io
+import re
 from typing import Literal
 
 from fastapi.encoders import jsonable_encoder
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 
-from .dependencies import Builder, User, ensure_site_access, ensure_site_active, get_admin_client, require_feature
+from .config import get_settings
+from .dependencies import Builder, User, ensure_site_access, ensure_site_active, forget_profile, get_admin_client, get_auth_client, maybe_one, require_feature
 from .features import FEATURE_AUDIT_LOG, FEATURE_CATEGORIES, FEATURE_NOTES, get_features, is_enabled
 from .schemas import CategoryCreate, CategoryUpdate, InvitationCreate, LedgerCreate, LedgerUpdate, NoteCreate, NoteUpdate, ProfileUpdate, SiteCreate, SiteUpdate
 from .services import record_audit
@@ -47,6 +49,7 @@ def update_me(update: ProfileUpdate, user: User):
         .execute()
     )
     profile = (updated.data or [{}])[0]
+    forget_profile(user.id)
     return {
         "id": profile.get("id"),
         "email": profile.get("email") or "",
@@ -108,6 +111,87 @@ def workspace_overview(user: User):
         "sites": [{**site, **by_site[site["id"]], "balance": by_site[site["id"]]["income"] - by_site[site["id"]]["expenses"]} for site in sites],
         "monthly": [{"month": month, **values, "balance": values["income"] - values["expenses"]} for month, values in sorted(by_month.items())],
     }
+
+
+@router.get("/updates")
+def list_updates(user: User, since: datetime | None = Query(default=None)):
+    """What needs attention across the user's active sites.
+
+    Builders: sites over (or near) budget, recent payments without a receipt,
+    and entries the team added since `since` (default: the last 48 hours).
+    Supervisors: only their own recent payments that still need a receipt.
+    """
+    db = get_admin_client()
+    empty = {"over_budget": [], "missing_receipts": [], "new_entries": []}
+    builder = user.role == "builder"
+    if builder:
+        sites = db.table("sites").select("id,name,budget").eq("owner_id", user.id).neq("status", "archived").execute().data or []
+    else:
+        member_ids = [row["site_id"] for row in db.table("site_members").select("site_id").eq("user_id", user.id).execute().data or []]
+        sites = db.table("sites").select("id,name,budget").in_("id", member_ids).neq("status", "archived").execute().data or [] if member_ids else []
+    if not sites:
+        return empty
+    names = {site["id"]: site["name"] for site in sites}
+    now = datetime.now(timezone.utc)
+    since = since or now - timedelta(hours=48)
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
+
+    over_budget = []
+    if builder:
+        spent: dict[str, Decimal] = {}
+        rows = db.table("ledger_entries").select("site_id,amount").in_("site_id", list(names)).eq("entry_type", "expense").is_("deleted_at", "null").execute().data or []
+        for row in rows:
+            spent[row["site_id"]] = spent.get(row["site_id"], Decimal("0")) + Decimal(str(row["amount"]))
+        for site in sites:
+            budget = Decimal(str(site.get("budget") or 0))
+            total = spent.get(site["id"], Decimal("0"))
+            if budget > 0 and total >= budget * Decimal("0.9"):
+                over_budget.append({"site_id": site["id"], "site_name": site["name"], "budget": budget, "spent": total, "pct": int(total * 100 / budget)})
+        over_budget.sort(key=lambda item: item["pct"], reverse=True)
+
+    # Recent entries only: older gaps are for the month-end review, not alerts.
+    recent = (
+        db.table("ledger_entries")
+        .select("id,site_id,entry_type,amount,paid_to,entry_date,created_at,created_by,categories(name),attachments(id),profiles!ledger_entries_created_by_fkey(full_name,email)")
+        .in_("site_id", list(names))
+        .is_("deleted_at", "null")
+        .gte("created_at", (now - timedelta(days=30)).isoformat())
+        .order("created_at", desc=True)
+        .execute()
+        .data
+        or []
+    )
+    person = lambda row: (row.get("profiles") or {}).get("full_name") or (row.get("profiles") or {}).get("email") or ""
+    missing = [
+        {
+            "entry_id": row["id"],
+            "site_id": row["site_id"],
+            "site_name": names[row["site_id"]],
+            "amount": row["amount"],
+            "paid_to": row.get("paid_to"),
+            "category": (row.get("categories") or {}).get("name"),
+            "entry_date": row["entry_date"],
+            "added_by": person(row),
+        }
+        for row in recent
+        if row["entry_type"] == "expense" and not row.get("attachments") and (builder or row["created_by"] == user.id)
+    ][:50]
+
+    new_entries = []
+    if builder:
+        groups: dict[tuple[str, str], dict] = {}
+        for row in recent:
+            created = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00"))
+            if row["created_by"] == user.id or created <= since:
+                continue
+            group = groups.setdefault((row["site_id"], row["created_by"]), {"site_id": row["site_id"], "site_name": names[row["site_id"]], "added_by": person(row), "count": 0, "total": Decimal("0"), "latest_at": row["created_at"]})
+            group["count"] += 1
+            if row["entry_type"] == "expense":
+                group["total"] += Decimal(str(row["amount"]))
+        new_entries = list(groups.values())
+
+    return {"over_budget": over_budget, "missing_receipts": missing, "new_entries": new_entries}
 
 
 @router.post("/sites", status_code=status.HTTP_201_CREATED)
@@ -280,36 +364,120 @@ def list_members(site_id: str, user: Builder):
     return get_admin_client().table("site_members").select("*, profiles!site_members_user_id_fkey(id,full_name,email,role)").eq("site_id", site_id).order("created_at").execute().data or []
 
 
+def _welcome_url(request: Request) -> str:
+    # Prefer the app's own origin so links work without configuring FRONTEND_URL.
+    # Supabase only redirects to URLs on its allow-list, so this can't be abused.
+    origin = request.headers.get("origin") or get_settings().frontend_url
+    return f"{origin.rstrip('/')}/welcome"
+
+
+def _accept(db, invitation: dict, user_id: str, actor_email: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    db.table("site_members").upsert({"site_id": invitation["site_id"], "user_id": user_id, "role": "supervisor", "invited_by": invitation["invited_by"], "joined_at": now}, on_conflict="site_id,user_id").execute()
+    db.table("invitations").update({"status": "accepted", "accepted_at": now}).eq("id", invitation["id"]).execute()
+    record_audit(db, site_id=invitation["site_id"], actor_id=user_id, action="invitation_accepted", entity_type="invitation", entity_id=invitation["id"], description=f"{actor_email} joined the site")
+
+
+def _is_expired(invitation: dict) -> bool:
+    return datetime.fromisoformat(invitation["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc)
+
+
 @router.post("/sites/{site_id}/members/invite", status_code=status.HTTP_201_CREATED)
-def invite_member(site_id: str, payload: InvitationCreate, user: Builder):
+def invite_member(site_id: str, payload: InvitationCreate, user: Builder, request: Request):
+    """Invite a supervisor. Existing supervisor accounts are added straight away;
+    new people get an email and join the site on their first sign-in."""
     site = ensure_site_access(site_id, user, builder_only=True)
     ensure_site_active(site)
     db = get_admin_client()
-    site = db.table("sites").select("name").eq("id", site_id).single().execute().data
-    existing = db.table("invitations").select("id").eq("site_id", site_id).eq("email", payload.email.lower()).eq("status", "pending").maybe_single().execute().data
-    if existing:
-        raise HTTPException(status_code=409, detail="A pending invitation already exists for this email")
-    invitation = db.table("invitations").insert({"site_id": site_id, "email": payload.email.lower(), "invited_by": user.id}).execute().data[0]
+    email = payload.email.strip().lower()
+    if email == user.email.lower():
+        raise HTTPException(status_code=400, detail="You already own this site")
+    if maybe_one(db.table("invitations").select("id").eq("site_id", site_id).eq("email", email).eq("status", "pending")):
+        raise HTTPException(status_code=409, detail="This person has already been invited. Use Resend on the pending invite.")
+    profile = maybe_one(db.table("profiles").select("id,role").eq("email", email))
+    if profile and profile["role"] == "builder":
+        raise HTTPException(status_code=409, detail="This email belongs to a builder account. Supervisors need their own account.")
+    if profile and maybe_one(db.table("site_members").select("id").eq("site_id", site_id).eq("user_id", profile["id"])):
+        raise HTTPException(status_code=409, detail="This person is already on the team")
+    invitation = db.table("invitations").insert({"site_id": site_id, "email": email, "invited_by": user.id}).execute().data[0]
+    if profile:
+        _accept(db, invitation, profile["id"], email)
+        record_audit(db, site_id=site_id, actor_id=user.id, action="member_added", entity_type="invitation", entity_id=invitation["id"], description=f"Added {email} to {site['name']}")
+        return {**invitation, "status": "accepted", "added": True}
     try:
-        get_admin_client().auth.admin.invite_user_by_email(payload.email, options={"data": {"site_id": site_id, "invitation_token": invitation["token"]}})
+        get_admin_client().auth.admin.invite_user_by_email(email, options={"data": {"site_id": site_id, "invitation_token": invitation["token"]}, "redirect_to": _welcome_url(request)})
     except Exception as exc:
         db.table("invitations").update({"status": "cancelled"}).eq("id", invitation["id"]).execute()
         raise HTTPException(status_code=502, detail="Could not send invitation email") from exc
-    record_audit(db, site_id=site_id, actor_id=user.id, action="member_invited", entity_type="invitation", entity_id=invitation["id"], description=f"Invited {payload.email} to {site['name']}")
+    record_audit(db, site_id=site_id, actor_id=user.id, action="member_invited", entity_type="invitation", entity_id=invitation["id"], description=f"Invited {email} to {site['name']}")
+    return {**invitation, "added": False}
+
+
+@router.get("/sites/{site_id}/invitations")
+def list_invitations(site_id: str, user: Builder):
+    ensure_site_access(site_id, user, builder_only=True)
+    return get_admin_client().table("invitations").select("id,email,status,expires_at,created_at").eq("site_id", site_id).eq("status", "pending").order("created_at").execute().data or []
+
+
+def _pending_invitation(db, site_id: str, invitation_id: str) -> dict:
+    invitation = maybe_one(db.table("invitations").select("*").eq("id", invitation_id).eq("site_id", site_id).eq("status", "pending"))
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
     return invitation
+
+
+@router.post("/sites/{site_id}/invitations/{invitation_id}/resend")
+def resend_invitation(site_id: str, invitation_id: str, user: Builder, request: Request):
+    """Extend the invite and email a fresh link to set a password."""
+    ensure_site_active(ensure_site_access(site_id, user, builder_only=True))
+    db = get_admin_client()
+    invitation = _pending_invitation(db, site_id, invitation_id)
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    db.table("invitations").update({"expires_at": expires_at}).eq("id", invitation_id).execute()
+    try:
+        get_auth_client().auth.reset_password_for_email(invitation["email"], {"redirect_to": _welcome_url(request)})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Could not send invitation email") from exc
+    record_audit(db, site_id=site_id, actor_id=user.id, action="invitation_resent", entity_type="invitation", entity_id=invitation_id, description=f"Resent invite to {invitation['email']}")
+    return {**invitation, "expires_at": expires_at}
+
+
+@router.delete("/sites/{site_id}/invitations/{invitation_id}")
+def cancel_invitation(site_id: str, invitation_id: str, user: Builder):
+    ensure_site_access(site_id, user, builder_only=True)
+    db = get_admin_client()
+    invitation = _pending_invitation(db, site_id, invitation_id)
+    db.table("invitations").update({"status": "cancelled"}).eq("id", invitation_id).execute()
+    record_audit(db, site_id=site_id, actor_id=user.id, action="invitation_cancelled", entity_type="invitation", entity_id=invitation_id, description=f"Cancelled invite to {invitation['email']}")
+    return {"id": invitation_id, "cancelled": True}
+
+
+@router.post("/invitations/accept-pending")
+def accept_pending_invitations(user: User):
+    """Join every site this email was invited to. Called by the app after sign-in,
+    so supervisors get access however they reached the app."""
+    if user.role != "supervisor" or not user.email:
+        return {"accepted": []}
+    db = get_admin_client()
+    pending = db.table("invitations").select("*").eq("email", user.email.lower()).eq("status", "pending").execute().data or []
+    accepted = []
+    for invitation in pending:
+        if _is_expired(invitation):
+            continue
+        _accept(db, invitation, user.id, user.email)
+        accepted.append(invitation["site_id"])
+    return {"accepted": accepted}
 
 
 @router.post("/invitations/{token}/accept")
 def accept_invitation(token: str, user: User):
     db = get_admin_client()
-    invitation = db.table("invitations").select("*").eq("token", token).eq("status", "pending").maybe_single().execute().data
-    if not invitation or datetime.fromisoformat(invitation["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    invitation = maybe_one(db.table("invitations").select("*").eq("token", token).eq("status", "pending"))
+    if not invitation or _is_expired(invitation):
         raise HTTPException(status_code=404, detail="Invitation is missing or expired")
     if invitation["email"].lower() != user.email.lower():
         raise HTTPException(status_code=403, detail="This invitation belongs to a different email address")
-    db.table("site_members").upsert({"site_id": invitation["site_id"], "user_id": user.id, "role": "supervisor", "invited_by": invitation["invited_by"], "joined_at": datetime.now(timezone.utc).isoformat()}, on_conflict="site_id,user_id").execute()
-    db.table("invitations").update({"status": "accepted", "accepted_at": datetime.now(timezone.utc).isoformat()}).eq("id", invitation["id"]).execute()
-    record_audit(db, site_id=invitation["site_id"], actor_id=user.id, action="invitation_accepted", entity_type="invitation", entity_id=invitation["id"], description=f"{user.email} joined the site")
+    _accept(db, invitation, user.id, user.email)
     return {"site_id": invitation["site_id"], "accepted": True}
 
 
@@ -317,11 +485,11 @@ def accept_invitation(token: str, user: User):
 def remove_member(site_id: str, member_id: str, user: Builder):
     ensure_site_access(site_id, user, builder_only=True)
     db = get_admin_client()
-    member = db.table("site_members").select("*, profiles(email)").eq("id", member_id).eq("site_id", site_id).maybe_single().execute().data
+    member = maybe_one(db.table("site_members").select("*, profiles!site_members_user_id_fkey(email)").eq("id", member_id).eq("site_id", site_id))
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     db.table("site_members").delete().eq("id", member_id).execute()
-    record_audit(db, site_id=site_id, actor_id=user.id, action="member_removed", entity_type="site_member", entity_id=member_id, description=f"Removed {member.get('profiles', {}).get('email', 'supervisor')}")
+    record_audit(db, site_id=site_id, actor_id=user.id, action="member_removed", entity_type="site_member", entity_id=member_id, description=f"Removed {(member.get('profiles') or {}).get('email', 'supervisor')}")
     return {"removed": True}
 
 
@@ -338,7 +506,7 @@ def list_ledger(
     page_size: int = Query(default=25, ge=1, le=100),
 ):
     ensure_site_access(site_id, user)
-    query = get_admin_client().table("ledger_entries").select("*, categories(name,type)", count="exact").eq("site_id", site_id).is_("deleted_at", "null").order("entry_date", desc=True)
+    query = get_admin_client().table("ledger_entries").select("*, categories(name,type), profiles!ledger_entries_created_by_fkey(full_name,email)", count="exact").eq("site_id", site_id).is_("deleted_at", "null").order("entry_date", desc=True)
     if entry_type:
         query = query.eq("entry_type", entry_type)
     if category_id:
@@ -347,23 +515,17 @@ def list_ledger(
         query = query.gte("entry_date", from_date.isoformat())
     if to_date:
         query = query.lte("entry_date", to_date.isoformat())
-    if search:
-        query = query.ilike("description", f"%{search}%")
+    # PostgREST's or= syntax treats , ( ) as separators, so drop them.
+    term = re.sub(r"[,()*%]", " ", search or "").strip()
+    if term:
+        query = query.or_(f"description.ilike.*{term}*,paid_to.ilike.*{term}*")
     start = (page - 1) * page_size
     response = query.range(start, start + page_size - 1).execute()
     return {"items": response.data or [], "page": page, "page_size": page_size, "total": response.count or 0}
 
 
 def _validate_category(db, site: dict, category_id: str, entry_type: str) -> dict:
-    response = (
-        db.table("categories")
-        .select("*")
-        .eq("id", category_id)
-        .eq("is_active", True)
-        .maybe_single()
-        .execute()
-    )
-    category = response.data if response else None
+    category = maybe_one(db.table("categories").select("*").eq("id", category_id).eq("is_active", True))
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     site_level = category.get("site_id")
@@ -387,7 +549,8 @@ def create_ledger_entry(site_id: str, payload: LedgerCreate, user: User):
     entry = response.data[0]
     if payload.note and is_enabled(FEATURE_NOTES):
         db.table("notes").insert({"site_id": site_id, "ledger_entry_id": entry["id"], "created_by": user.id, "content": payload.note}).execute()
-    record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_created", entity_type="ledger_entry", entity_id=entry["id"], description=f"Added {payload.entry_type} for {category['name']}", metadata={"amount": str(payload.amount), "category": category["name"]})
+    who = f" {'to' if payload.entry_type == 'expense' else 'from'} {payload.paid_to}" if payload.paid_to else ""
+    record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_created", entity_type="ledger_entry", entity_id=entry["id"], description=f"Added {payload.entry_type} for {category['name']}{who}", metadata={"amount": str(payload.amount), "category": category["name"], "paid_to": payload.paid_to})
     return entry
 
 
@@ -410,8 +573,7 @@ def update_ledger_entry(site_id: str, entry_id: str, payload: LedgerUpdate, user
     site = ensure_site_access(site_id, user, builder_only=True)
     ensure_site_active(site)
     db = get_admin_client()
-    current_response = db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null").maybe_single().execute()
-    current = current_response.data
+    current = maybe_one(db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null"))
     if not current:
         raise HTTPException(status_code=404, detail="Ledger entry not found")
     changes = payload.model_dump(mode="json", exclude_none=True)
@@ -430,12 +592,26 @@ def delete_ledger_entry(site_id: str, entry_id: str, user: Builder):
     site = ensure_site_access(site_id, user, builder_only=True)
     ensure_site_active(site)
     db = get_admin_client()
-    current = db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null").maybe_single().execute().data
+    current = maybe_one(db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id).is_("deleted_at", "null"))
     if not current:
         raise HTTPException(status_code=404, detail="Ledger entry not found")
     updated = db.table("ledger_entries").update({"deleted_at": datetime.now(timezone.utc).isoformat(), "updated_by": user.id}).eq("id", entry_id).execute().data[0]
     record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_deleted", entity_type="ledger_entry", entity_id=entry_id, description="Deleted ledger entry", metadata=jsonable_encoder({"deleted_entry": current}))
     return {"id": updated["id"], "deleted": True}
+
+
+@router.post("/sites/{site_id}/ledger/{entry_id}/restore")
+def restore_ledger_entry(site_id: str, entry_id: str, user: Builder):
+    """Undo a delete. Entries are soft-deleted, so this just clears deleted_at."""
+    site = ensure_site_access(site_id, user, builder_only=True)
+    ensure_site_active(site)
+    db = get_admin_client()
+    current = maybe_one(db.table("ledger_entries").select("*").eq("site_id", site_id).eq("id", entry_id))
+    if not current or not current.get("deleted_at"):
+        raise HTTPException(status_code=404, detail="Deleted entry not found")
+    restored = db.table("ledger_entries").update({"deleted_at": None, "updated_by": user.id}).eq("id", entry_id).execute().data[0]
+    record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_restored", entity_type="ledger_entry", entity_id=entry_id, description="Restored deleted ledger entry")
+    return restored
 
 
 @notes_router.post("/sites/{site_id}/notes", status_code=status.HTTP_201_CREATED)
@@ -455,7 +631,7 @@ def list_site_notes(site_id: str, user: User):
 
 
 def _get_standalone_note(db, site_id: str, note_id: str, user: User) -> dict:
-    note = db.table("notes").select("*").eq("site_id", site_id).eq("id", note_id).is_("ledger_entry_id", "null").maybe_single().execute().data
+    note = maybe_one(db.table("notes").select("*").eq("site_id", site_id).eq("id", note_id).is_("ledger_entry_id", "null"))
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     if user.role != "builder" and note["created_by"] != user.id:
@@ -527,12 +703,12 @@ def _csv_cell(value) -> str:
 
 @router.get("/sites/{site_id}/reports/export")
 def export_report(site_id: str, user: User, month: str | None = Query(default=None, max_length=7)):
-    ensure_site_access(site_id, user)
+    site = ensure_site_access(site_id, user)
     query = (
         get_admin_client()
         .table("ledger_entries")
         .select(
-            "id,entry_date,entry_type,amount,description,payment_method,created_at,updated_at,categories(name),notes(content),attachments(file_name),profiles!ledger_entries_created_by_fkey(full_name,email)"
+            "id,entry_date,entry_type,amount,paid_to,description,payment_method,reference,created_at,updated_at,categories(name),notes(content),attachments(file_name),profiles!ledger_entries_created_by_fkey(full_name,email)"
         )
         .eq("site_id", site_id)
         .is_("deleted_at", "null")
@@ -548,7 +724,7 @@ def export_report(site_id: str, user: User, month: str | None = Query(default=No
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
-        ["Date", "Type", "Category", "Amount", "Description", "Payment method", "Note", "Added by", "Created at", "Last updated", "Receipt"]
+        ["Date", "Type", "Category", "Paid to / from", "Amount", "Description", "Payment method", "UPI / bank reference", "Note", "Added by", "Created at", "Last updated", "Receipt"]
     )
     for row in rows:
         notes = "; ".join(note.get("content", "") for note in row.get("notes") or [])
@@ -559,9 +735,11 @@ def export_report(site_id: str, user: User, month: str | None = Query(default=No
                 row.get("entry_date", ""),
                 row.get("entry_type", ""),
                 (row.get("categories") or {}).get("name", ""),
+                _csv_cell(row.get("paid_to")),
                 row.get("amount", ""),
-                row.get("description", ""),
+                _csv_cell(row.get("description")),
                 row.get("payment_method", ""),
+                _csv_cell(row.get("reference")),
                 notes,
                 (row.get("profiles") or {}).get("full_name", ""),
                 row.get("created_at", ""),
@@ -571,7 +749,8 @@ def export_report(site_id: str, user: User, month: str | None = Query(default=No
         )
     record_audit(get_admin_client(), site_id=site_id, actor_id=user.id, action="report_exported", entity_type="report", description="Exported ledger report")
     fn_suffix = f"-{month}" if month else ""
-    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="nirmanam-{site_id}{fn_suffix}-ledger.csv"'})
+    fn_site = re.sub(r"[^A-Za-z0-9]+", "-", site.get("name") or "").strip("-").lower() or site_id
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{fn_site}{fn_suffix}-ledger.csv"'})
 
 
 @router.post("/sites/{site_id}/attachments", status_code=status.HTTP_201_CREATED)
@@ -583,6 +762,8 @@ def upload_attachment(site_id: str, user: User, file: UploadFile = File(...), le
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Receipt must be smaller than 10MB")
     db = get_admin_client()
+    if ledger_entry_id and not maybe_one(db.table("ledger_entries").select("id").eq("id", ledger_entry_id).eq("site_id", site_id).is_("deleted_at", "null")):
+        raise HTTPException(status_code=404, detail="Ledger entry not found")
     path = f"{site_id}/{ledger_entry_id or 'site'}/{datetime.now(timezone.utc).timestamp()}-{file.filename}"
     db.storage.from_("receipts").upload(path, content, {"content-type": file.content_type or "application/octet-stream"})
     attachment = db.table("attachments").insert({"site_id": site_id, "ledger_entry_id": ledger_entry_id, "uploaded_by": user.id, "file_name": file.filename, "storage_path": path, "mime_type": file.content_type, "file_size": len(content)}).execute().data[0]
@@ -593,12 +774,10 @@ def upload_attachment(site_id: str, user: User, file: UploadFile = File(...), le
 
 @audit_router.get("/audit-logs")
 def workspace_audit_logs(user: Builder, page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=100)):
-    """Audit history across every site the builder can access."""
+    """Audit history across every site the builder owns (same scope as RLS)."""
     db = get_admin_client()
     owned = db.table("sites").select("id").eq("owner_id", user.id).execute().data or []
-    owner_ids = [site["id"] for site in owned if site.get("id")]
-    member_ids = [row["site_id"] for row in db.table("site_members").select("site_id").eq("user_id", user.id).execute().data or []]
-    site_ids = list(dict.fromkeys(owner_ids + member_ids))
+    site_ids = [site["id"] for site in owned if site.get("id")]
     if not site_ids:
         return {"items": [], "page": page, "page_size": page_size, "total": 0}
     start = (page - 1) * page_size
