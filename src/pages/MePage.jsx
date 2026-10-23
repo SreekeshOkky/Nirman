@@ -14,14 +14,18 @@ import { getInitials } from "../components/Shared";
 function MenuRow({ to, icon: Icon, title, detail }) {
   return (
     <Link to={to} className="menu-row">
-      <span className="menu-row-icon">
+      <span className="menu-row-icon" aria-hidden="true">
         <Icon size={19} />
       </span>
       <span className="menu-row-text">
         <strong>{title}</strong>
         {detail && <span>{detail}</span>}
       </span>
-      <ChevronRight size={18} className="menu-row-chevron" />
+      <ChevronRight
+        size={18}
+        className="menu-row-chevron"
+        aria-hidden="true"
+      />
     </Link>
   );
 }
@@ -38,8 +42,8 @@ export default function MePage({ profile, isBuilder, features }) {
       <div className="home-heading">
         <h1>Me</h1>
       </div>
-      <div className="card me-card">
-        <span className="me-avatar">
+      <div className="me-card">
+        <span className="me-avatar" aria-hidden="true">
           {getInitials(profile?.full_name) || "?"}
         </span>
         <span className="me-name">
@@ -54,7 +58,7 @@ export default function MePage({ profile, isBuilder, features }) {
       {isBuilder && (
         <section className="menu-group">
           <h2>Workspace</h2>
-          <div className="card menu-card">
+          <div className="menu-card">
             {enabled("categories") && (
               <MenuRow
                 to="/categories"
@@ -83,17 +87,21 @@ export default function MePage({ profile, isBuilder, features }) {
 
       <section className="menu-group">
         <h2>Account</h2>
-        <div className="card menu-card">
+        <div className="menu-card">
           <MenuRow
             to="/settings"
             icon={Settings2}
-            title="Name and appearance"
-            detail="Your name, light or dark theme"
+            title="Your name"
+            detail="How you appear to your team"
           />
         </div>
       </section>
 
-      <button className="secondary-button sign-out-button" onClick={signOut}>
+      <button
+        type="button"
+        className="secondary-button sign-out-button"
+        onClick={signOut}
+      >
         <LogOut size={18} /> Sign out
       </button>
     </>

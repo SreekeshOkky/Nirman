@@ -88,44 +88,46 @@ export default function SitesPage({
         subtitle="Every site, including finished ones you can reactivate."
       >
         {isBuilder && (
-          <button className="primary-button" onClick={() => setShow(true)}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => setShow(true)}
+          >
             <Plus size={17} /> New site
           </button>
         )}
       </PageHeading>
-      <div className="card collection-card">
+      <section className="collection" aria-labelledby="sites-list-title">
         <div className="collection-head">
           <div>
-            <h2>Your construction sites</h2>
+            <h2 id="sites-list-title">Your construction sites</h2>
             <p>
               {visible.length} workspace{visible.length === 1 ? "" : "s"}
             </p>
           </div>
-          <div className="site-filter-head">
-            <div className="type-toggle site-filter">
-              <label>
-                <input
-                  type="radio"
-                  name="site-filter"
-                  value="active"
-                  checked={filter === "active"}
-                  onChange={(event) => setFilter(event.target.value)}
-                />
-                <span>Active</span>
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="site-filter"
-                  value="archived"
-                  checked={filter === "archived"}
-                  onChange={(event) => setFilter(event.target.value)}
-                />
-                <span>
-                  Inactive{archivedCount ? ` (${archivedCount})` : ""}
-                </span>
-              </label>
-            </div>
+          <div className="type-toggle site-filter">
+            <label>
+              <input
+                type="radio"
+                name="site-filter"
+                value="active"
+                checked={filter === "active"}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+              <span>Active</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="site-filter"
+                value="archived"
+                checked={filter === "archived"}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+              <span>
+                Inactive{archivedCount ? ` (${archivedCount})` : ""}
+              </span>
+            </label>
           </div>
         </div>
         {visible.length ? (
@@ -143,6 +145,7 @@ export default function SitesPage({
                     </div>
                   ) : (
                     <button
+                      type="button"
                       className="site-card-main"
                       onClick={() => {
                         setSiteId(site.id);
@@ -155,6 +158,7 @@ export default function SitesPage({
                   {isBuilder &&
                     (archived ? (
                       <button
+                        type="button"
                         className="secondary-button site-status-action"
                         onClick={() =>
                           setConfirmTarget({ site, action: "activate" })
@@ -164,6 +168,7 @@ export default function SitesPage({
                       </button>
                     ) : (
                       <button
+                        type="button"
                         className="secondary-button site-status-action"
                         onClick={() =>
                           setConfirmTarget({ site, action: "archive" })
@@ -183,7 +188,7 @@ export default function SitesPage({
               : "No sites yet. Create your first construction site."}
           </div>
         )}
-      </div>
+      </section>
       {show && (
         <SiteModal
           onClose={() => setShow(false)}
@@ -208,20 +213,22 @@ export default function SitesPage({
 function CardBody({ site, archived = false }) {
   return (
     <>
-      <div className="site-card-top">
-        <span className="site-icon">
-          <Building2 size={18} />
-        </span>
-        <span className={`status-tag ${archived ? "archived" : "active"}`}>
-          {archived ? "inactive" : site.status || "active"}
-        </span>
-      </div>
-      <h3>{site.name}</h3>
-      <p>{site.location || "Location not added"}</p>
-      <div className="site-card-foot">
+      <span className="site-icon" aria-hidden="true">
+        <Building2 size={18} />
+      </span>
+      <span className="site-card-name">
+        <strong>{site.name}</strong>
+        <span>{site.location || "Location not added"}</span>
+      </span>
+      <span className="site-card-foot">
         <span>Budget</span>
-        <strong>{site.budget ? money(site.budget) : "Not set"}</strong>
-      </div>
+        <strong className="figure">
+          {site.budget ? money(site.budget) : "Not set"}
+        </strong>
+      </span>
+      <span className={`status-tag ${archived ? "archived" : "active"}`}>
+        {archived ? "inactive" : site.status || "active"}
+      </span>
     </>
   );
 }

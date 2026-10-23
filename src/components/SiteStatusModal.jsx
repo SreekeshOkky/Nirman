@@ -39,7 +39,7 @@ export default function SiteStatusModal({
     >
       {notTally && (
         <div className="tally-warning">
-          <TriangleAlert size={17} />
+          <TriangleAlert size={17} aria-hidden="true" />
           <p>
             The ledger for this site is not tally. Income minus expenses is{" "}
             <strong>{money(balance)}</strong>.
@@ -47,12 +47,22 @@ export default function SiteStatusModal({
         </div>
       )}
       <div className="modal-actions">
-        <button className="secondary-button" onClick={onClose} disabled={busy}>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onClose}
+          disabled={busy}
+        >
           Cancel
         </button>
-        <button className="primary-button" onClick={onConfirm} disabled={busy}>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={onConfirm}
+          disabled={busy}
+        >
           {busy
-            ? "Working..."
+            ? "Working…"
             : archiving
               ? "Yes, mark inactive"
               : "Yes, reactivate"}

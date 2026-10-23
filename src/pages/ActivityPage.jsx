@@ -2,6 +2,13 @@ import React, { useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { PageHeading, getInitials } from "../components/Shared";
 import { api } from "../lib/api";
+
+const formatTime = (iso) => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+};
 export default function ActivityPage({ token }) {
   const [audit, setAudit] = useState([]);
   useEffect(() => {
@@ -22,20 +29,20 @@ export default function ActivityPage({ token }) {
         title="Activity log"
         subtitle="A record of every change across your sites. It can’t be edited or deleted."
       />
-      <div className="card activity-card full-card">
+      <div className="collection activity-card">
         <div className="card-head">
           <div>
             <h2>Audit history</h2>
             <p>Every important change is recorded.</p>
           </div>
           <span className="secure-label">
-            <ShieldCheck size={14} /> Builder only
+            <ShieldCheck size={14} aria-hidden="true" /> Builder only
           </span>
         </div>
         <div className="activity-list">
           {audit.map((item) => (
             <div className="activity-item" key={item.id}>
-              <div className="avatar avatar-dark">
+              <div className="avatar" aria-hidden="true">
                 {getInitials(item.profiles?.full_name) ||
                   getInitials(item.actor) ||
                   item.profiles?.email?.[0]?.toUpperCase() ||
@@ -44,7 +51,9 @@ export default function ActivityPage({ token }) {
               <div className="activity-copy">
                 <div>
                   <strong>{item.action}</strong>
-                  <time>{item.created_at}</time>
+                  <time className="figure" dateTime={item.created_at}>
+                    {formatTime(item.created_at)}
+                  </time>
                 </div>
                 <span>{item.description}</span>
                 <small>

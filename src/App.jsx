@@ -6,6 +6,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+import { Check } from "lucide-react";
 import { arrivedFromPasswordLink, supabase } from "./lib/supabase";
 import { api } from "./lib/api";
 import { DEFAULT_FEATURES, loadFeatures } from "./lib/features";
@@ -130,11 +131,11 @@ export default function App() {
 
   if (!supabase) return <AuthPage configurationMissing features={features} />;
   if (authLoading)
-    return <div className="auth-loading">Loading {brand.name}...</div>;
+    return <div className="auth-loading">Loading {brand.name}…</div>;
   if (!session) return <AuthPage features={features} />;
   if (needsPassword) {
     if (!profile.role)
-      return <div className="auth-loading">Loading {brand.name}...</div>;
+      return <div className="auth-loading">Loading {brand.name}…</div>;
     return (
       <SetPasswordPage
         profile={profile}
@@ -177,7 +178,7 @@ export default function App() {
             index
             element={
               sitesLoading || !profile.role ? (
-                <div className="auth-loading">Loading...</div>
+                <div className="auth-loading">Loading…</div>
               ) : !isBuilder && activeSites.length === 1 ? (
                 // A supervisor with one site goes straight to it.
                 <Navigate to={`/sites/${activeSites[0].id}`} replace />
@@ -266,7 +267,7 @@ export default function App() {
               path={path}
               element={
                 sitesLoading ? (
-                  <div className="auth-loading">Loading...</div>
+                  <div className="auth-loading">Loading…</div>
                 ) : (
                   <Navigate
                     to={
@@ -285,10 +286,11 @@ export default function App() {
       </Routes>
       {toast && (
         <div className="toast" role="status">
-          <span className="toast-check">✓</span>
+          <Check size={16} className="toast-check" aria-hidden="true" />
           {toast.message}
           {toast.action && (
             <button
+              type="button"
               className="toast-action"
               onClick={() => {
                 setToast(null);

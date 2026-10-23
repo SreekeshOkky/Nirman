@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 export const getInitials = (name) => {
   if (!name) return "";
@@ -37,34 +37,28 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
   const person = entry.profiles?.full_name || entry.profiles?.email || "";
   // Lead with who was paid; older entries without a payee lead with category.
   const category = entry.categories?.name;
-  const details = [entry.paid_to && category, entry.description]
-    .filter(Boolean)
-    .join(" · ");
   return (
-    <div className="entry-row">
-      <div className={`entry-type ${type}`}>
-        <span>
-          {type === "income" ? (
-            <ArrowDownLeft size={15} />
-          ) : (
-            <ArrowUpRight size={15} />
-          )}
-        </span>
-      </div>
+    <div className={`entry-row ${type}`}>
+      <time className="entry-date" dateTime={entry.entry_date}>
+        {formatDate(entry.entry_date)}
+      </time>
       <div className="entry-info">
         <strong>{entry.paid_to || category || "Entry"}</strong>
-        <span>
-          {details || "No details"}
+        <span className="entry-details">
+          {entry.paid_to && category && <span>{category}</span>}
+          {entry.description && <span>{entry.description}</span>}
+          {!(entry.paid_to && category) && !entry.description && (
+            <span>No details</span>
+          )}
           {entry.payment_method && (
-            <em className="pay-badge">{entry.payment_method}</em>
+            <span className="pay-badge">{entry.payment_method}</span>
           )}
         </span>
       </div>
-      <div className="entry-date">{formatDate(entry.entry_date)}</div>
       <div className="entry-person">
         {person && (
           <>
-            <div className="avatar avatar-dark">
+            <div className="avatar" aria-hidden="true">
               {getInitials(entry.profiles?.full_name) ||
                 person[0].toUpperCase()}
             </div>
@@ -73,35 +67,44 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
         )}
       </div>
       <strong className={`entry-amount ${type}`}>
-        {type === "income" ? "+" : "-"}
+        <span className="visually-hidden">
+          {type === "income" ? "Received " : "Paid out "}
+        </span>
+        {type === "income" ? "+" : "−"}
         {money(entry.amount)}
       </strong>
       <div className="row-actions">
         {onView && (
           <button
+            type="button"
             className="row-action"
             title="View details"
+            aria-label="View details"
             onClick={() => onView(entry)}
           >
-            <Eye size={14} />
+            <Eye size={16} />
           </button>
         )}
         {onEdit && (
           <button
+            type="button"
             className="row-action"
             title="Edit entry"
+            aria-label="Edit entry"
             onClick={() => onEdit(entry)}
           >
-            <Pencil size={14} />
+            <Pencil size={16} />
           </button>
         )}
         {onDelete && (
           <button
+            type="button"
             className="row-action danger"
             title="Delete entry"
+            aria-label="Delete entry"
             onClick={() => onDelete(entry)}
           >
-            <Trash2 size={14} />
+            <Trash2 size={16} />
           </button>
         )}
       </div>
@@ -109,7 +112,6 @@ export function EntryRow({ entry, onView, onEdit, onDelete }) {
   );
 }
 export function PageHeading({
-  eyebrow = null,
   title,
   subtitle,
   children,
@@ -122,7 +124,6 @@ export function PageHeading({
   return (
     <div className="page-heading">
       <div>
-        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
         {subtitle && <p className="subtitle">{subtitle}</p>}
       </div>

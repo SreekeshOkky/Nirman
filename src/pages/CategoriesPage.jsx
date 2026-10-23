@@ -51,11 +51,15 @@ export default function CategoriesPage({ token, flash }) {
         title="Categories"
         subtitle="Your shared categories, used across all your sites."
       >
-        <button className="primary-button" onClick={() => setShow(true)}>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => setShow(true)}
+        >
           <Plus size={17} /> Add category
         </button>
       </PageHeading>
-      <div className="card collection-card">
+      <div className="collection">
         <div className="collection-head">
           <div>
             <h2>Your categories</h2>
@@ -65,7 +69,10 @@ export default function CategoriesPage({ token, flash }) {
         <div className="category-list">
           {items.map((category) => (
             <div className="category-item" key={category.id}>
-              <span className={`category-badge ${category.type}`}>
+              <span
+                className={`category-badge ${category.type}`}
+                aria-hidden="true"
+              >
                 {category.type === "income" ? (
                   <ArrowDownLeft size={15} />
                 ) : (
@@ -80,8 +87,10 @@ export default function CategoriesPage({ token, flash }) {
                 {category.is_default !== false ? "Default" : "Custom"}
               </span>
               <button
+                type="button"
                 className="row-more"
                 title="Disable category"
+                aria-label={`Disable ${category.name}`}
                 onClick={() => disable(category)}
               >
                 <MoreHorizontal size={17} />
@@ -98,12 +107,17 @@ export default function CategoriesPage({ token, flash }) {
         >
           <form onSubmit={add}>
             <div className="field">
-              <label>Category name</label>
-              <input name="name" placeholder="e.g. Plumbing" required />
+              <label htmlFor="category-name">Category name</label>
+              <input
+                id="category-name"
+                name="name"
+                placeholder="e.g. Plumbing"
+                required
+              />
             </div>
             <div className="field">
-              <label>Category type</label>
-              <select name="type">
+              <label htmlFor="category-type">Category type</label>
+              <select id="category-type" name="type">
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
               </select>
@@ -116,8 +130,8 @@ export default function CategoriesPage({ token, flash }) {
               >
                 Cancel
               </button>
-              <button className="primary-button" disabled={saving}>
-                <Plus size={17} /> {saving ? "Adding..." : "Add category"}
+              <button type="submit" className="primary-button" disabled={saving}>
+                <Plus size={17} /> {saving ? "Adding…" : "Add category"}
               </button>
             </div>
           </form>

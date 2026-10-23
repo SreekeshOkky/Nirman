@@ -68,7 +68,7 @@ export function updateItems(data, { mine = false } = {}) {
       !mine && entry.added_by && `added by ${entry.added_by}`,
     ]
       .filter(Boolean)
-      .join(" · "),
+      .join(", "),
     when: formatDate(entry.entry_date),
     to: `/sites/${entry.site_id}?view=${entry.entry_id}`,
   }));

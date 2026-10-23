@@ -188,7 +188,7 @@ export default function EntryModal({
             />
             {recent.length > 0 && (
               <div className="recent-payees">
-                <span>Recent:</span>
+                <span>Recent</span>
                 {recent.map((name) => (
                   <button
                     type="button"
@@ -203,12 +203,14 @@ export default function EntryModal({
           </div>
 
           <div className="field">
-            <label>Category</label>
+            <span className="field-label" id="entry-category-label">
+              Category
+            </span>
             {visibleCategories.length ? (
               <div
                 className="chip-group"
                 role="radiogroup"
-                aria-label="Category"
+                aria-labelledby="entry-category-label"
               >
                 {visibleCategories.map((category) => (
                   <label className="chip" key={category.id}>
@@ -238,10 +240,14 @@ export default function EntryModal({
           </div>
 
           <div className="field">
-            <label>
+            <span className="field-label" id="entry-how-label">
               How <span>Optional</span>
-            </label>
-            <div className="chip-group" role="radiogroup" aria-label="How">
+            </span>
+            <div
+              className="chip-group"
+              role="radiogroup"
+              aria-labelledby="entry-how-label"
+            >
               {PAYMENT_METHODS.map((method) => (
                 <label className="chip" key={method}>
                   <input
@@ -283,9 +289,9 @@ export default function EntryModal({
             </div>
             {!isEdit && (
               <div className="field">
-                <label>
+                <span className="field-label">
                   Receipt <span>Optional</span>
-                </label>
+                </span>
                 <label className={`receipt-tile ${receipt ? "attached" : ""}`}>
                   <input
                     type="file"
@@ -366,7 +372,7 @@ export default function EntryModal({
           >
             <Check size={17} />{" "}
             {saving
-              ? "Saving..."
+              ? "Saving…"
               : isEdit
                 ? "Save changes"
                 : received

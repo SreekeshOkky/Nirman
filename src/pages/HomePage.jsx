@@ -103,6 +103,7 @@ export default function HomePage({
         </div>
         {isBuilder && (
           <button
+            type="button"
             className="secondary-button"
             onClick={() => setCreating(true)}
           >
@@ -112,21 +113,21 @@ export default function HomePage({
       </div>
 
       {isBuilder && (
-        <section className="home-hero" aria-label="This month">
-          <div>
+        <section className="home-hero tray" aria-label="This month">
+          <div className="home-hero-main">
             <span>Spent in {formatMonth(thisMonth)}</span>
-            <strong>{money(month.expenses)}</strong>
+            <strong className="figure">{money(month.expenses)}</strong>
           </div>
-          <div className="home-hero-stats">
+          <dl className="home-hero-stats">
             <div>
-              <span>Received</span>
-              <strong>{money(month.income)}</strong>
+              <dt>Received</dt>
+              <dd className="figure positive">{money(month.income)}</dd>
             </div>
             <div>
-              <span>Active sites</span>
-              <strong>{overview.sites.length}</strong>
+              <dt>Active sites</dt>
+              <dd className="figure">{overview.sites.length}</dd>
             </div>
-          </div>
+          </dl>
         </section>
       )}
 
@@ -138,7 +139,7 @@ export default function HomePage({
               See all
             </Link>
           </div>
-          <div className="card menu-card">
+          <div className="menu-card">
             {attention.slice(0, 3).map((item) => (
               <UpdateRow key={item.key} item={item} />
             ))}
@@ -146,92 +147,103 @@ export default function HomePage({
         </section>
       )}
 
-      {isBuilder && (
-        <div className="section-head">
-          <h2>Active sites</h2>
-        </div>
-      )}
-      <section className="home-sites" aria-label="Active sites">
-        {loading && !overview.sites.length ? (
-          <div className="card empty-state">Loading your sites…</div>
-        ) : !overview.sites.length ? (
-          <div className="card empty-state">
-            {isBuilder ? (
-              <>
-                <p>Create your first site to start recording payments.</p>
-                <button
-                  className="primary-button"
-                  onClick={() => setCreating(true)}
-                >
-                  <Plus size={17} /> Create a site
-                </button>
-              </>
-            ) : (
-              "You haven’t been added to a site yet. Ask your builder to invite you."
-            )}
+      <section className="home-sites-section" aria-label="Active sites">
+        {isBuilder && (
+          <div className="section-head">
+            <h2>Active sites</h2>
           </div>
-        ) : (
-          overview.sites.map((site) => {
-            const state = isBuilder ? budgetState(site) : null;
-            return (
-              <Link
-                key={site.id}
-                to={`/sites/${site.id}`}
-                className="site-tile"
-                onClick={() => setSiteId(site.id)}
-              >
-                <div className="site-tile-head">
-                  <span className="site-tile-icon">
+        )}
+        <div className="home-sites">
+          {loading && !overview.sites.length ? (
+            <div className="empty-state">Loading your sites…</div>
+          ) : !overview.sites.length ? (
+            <div className="empty-state">
+              {isBuilder ? (
+                <>
+                  <p>Create your first site to start recording payments.</p>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => setCreating(true)}
+                  >
+                    <Plus size={17} /> Create a site
+                  </button>
+                </>
+              ) : (
+                "You haven’t been added to a site yet. Ask your builder to invite you."
+              )}
+            </div>
+          ) : (
+            overview.sites.map((site) => {
+              const state = isBuilder ? budgetState(site) : null;
+              return (
+                <Link
+                  key={site.id}
+                  to={`/sites/${site.id}`}
+                  className={`site-tile ${state ? state.tone : ""}`}
+                  onClick={() => setSiteId(site.id)}
+                >
+                  <span className="site-tile-icon" aria-hidden="true">
                     <Building2 size={18} />
                   </span>
-                  <div className="site-tile-name">
+                  <span className="site-tile-name">
                     <strong>{site.name}</strong>
                     <span>
-                      <MapPin size={13} />{" "}
+                      <MapPin size={13} aria-hidden="true" />
                       {site.location || "Location not added"}
                     </span>
-                  </div>
-                  {state ? (
-                    <span className={`budget-badge ${state.tone}`}>
-                      {state.pct}%{state.tone === "over" ? " · over" : ""}
-                    </span>
-                  ) : (
-                    <ChevronRight size={18} className="site-tile-chevron" />
-                  )}
-                </div>
-                {state && (
-                  <>
-                    <div className="budget-bar">
-                      <i
-                        className={state.tone}
-                        style={{ width: `${Math.min(100, state.pct)}%` }}
-                      />
-                    </div>
-                    <div className="site-tile-foot">
-                      <span>
-                        <strong>{money(site.expenses)}</strong> of{" "}
-                        {money(site.budget)}
+                  </span>
+                  {state && (
+                    <span className="site-tile-budget">
+                      <span className="site-tile-figures">
+                        <span>
+                          <strong className="figure">
+                            {money(site.expenses)}
+                          </strong>{" "}
+                          of {money(site.budget)}
+                        </span>
+                        <span className={`budget-badge ${state.tone}`}>
+                          {state.pct}%
+                        </span>
                       </span>
-                      <span className={state.tone === "over" ? "over" : ""}>
+                      <span className="budget-bar" aria-hidden="true">
+                        <i
+                          className={state.tone}
+                          style={{
+                            transform: `scaleX(${Math.min(100, state.pct) / 100})`,
+                          }}
+                        />
+                      </span>
+                      <span className="site-tile-left">
                         {state.left >= 0
                           ? `${money(state.left)} left`
                           : `${money(-state.left)} over`}
                       </span>
-                    </div>
-                  </>
-                )}
-                {isBuilder && !state && (
-                  <div className="site-tile-foot">
-                    <span>
-                      <strong>{money(site.expenses)}</strong> spent · no budget
-                      set
                     </span>
-                  </div>
-                )}
-              </Link>
-            );
-          })
-        )}
+                  )}
+                  {isBuilder && !state && (
+                    <span className="site-tile-budget">
+                      <span className="site-tile-figures">
+                        <span>
+                          <strong className="figure">
+                            {money(site.expenses)}
+                          </strong>{" "}
+                          spent
+                        </span>
+                      </span>
+                      <span className="site-tile-left">No budget set</span>
+                    </span>
+                  )}
+                  <ChevronRight
+                    size={18}
+                    className="site-tile-chevron"
+                    aria-hidden="true"
+                  />
+                </Link>
+              );
+            })
+          )}
+        </div>
         <Link to="/sites" className="home-all-sites">
           All sites, including finished ones <ChevronRight size={16} />
         </Link>

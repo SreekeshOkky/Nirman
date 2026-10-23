@@ -182,7 +182,7 @@ def list_updates(user: User, since: datetime | None = Query(default=None)):
     if builder:
         groups: dict[tuple[str, str], dict] = {}
         for row in recent:
-            created = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00"))
+            created = _parse_timestamp(row["created_at"])
             if row["created_by"] == user.id or created <= since:
                 continue
             group = groups.setdefault((row["site_id"], row["created_by"]), {"site_id": row["site_id"], "site_name": names[row["site_id"]], "added_by": person(row), "count": 0, "total": Decimal("0"), "latest_at": row["created_at"]})
@@ -378,8 +378,14 @@ def _accept(db, invitation: dict, user_id: str, actor_email: str) -> None:
     record_audit(db, site_id=invitation["site_id"], actor_id=user_id, action="invitation_accepted", entity_type="invitation", entity_id=invitation["id"], description=f"{actor_email} joined the site")
 
 
+def _parse_timestamp(value: str) -> datetime:
+    # Postgres trims trailing zeros (".02244"); Python < 3.11 only parses 3 or 6 fraction digits.
+    value = re.sub(r"\.(\d{1,6})(?=[+-]|$)", lambda m: "." + m.group(1).ljust(6, "0"), value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value)
+
+
 def _is_expired(invitation: dict) -> bool:
-    return datetime.fromisoformat(invitation["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc)
+    return _parse_timestamp(invitation["expires_at"]) < datetime.now(timezone.utc)
 
 
 @router.post("/sites/{site_id}/members/invite", status_code=status.HTTP_201_CREATED)

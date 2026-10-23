@@ -32,7 +32,12 @@ export default function Modal({
             <h2 id={titleId}>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="close-button" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            className="close-button"
+            onClick={onClose}
+            aria-label="Close"
+          >
             <X size={20} />
           </button>
         </div>

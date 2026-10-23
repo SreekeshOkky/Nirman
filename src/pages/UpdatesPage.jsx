@@ -15,15 +15,19 @@ export function UpdateRow({ item }) {
   const Icon = ICONS[item.kind];
   return (
     <Link to={item.to} className="update-row">
-      <span className={`update-icon ${item.tone}`}>
-        <Icon size={19} />
+      <span className={`update-icon ${item.tone}`} aria-hidden="true">
+        <Icon size={18} />
       </span>
       <span className="update-text">
         <strong>{item.title}</strong>
         <span>{item.detail}</span>
-        {item.when && <em>{item.when}</em>}
+        {item.when && <em className="figure">{item.when}</em>}
       </span>
-      <ChevronRight size={18} className="menu-row-chevron" />
+      <ChevronRight
+        size={18}
+        className="menu-row-chevron"
+        aria-hidden="true"
+      />
     </Link>
   );
 }
@@ -76,22 +80,23 @@ export default function UpdatesPage({ updates, refreshUpdates, isBuilder }) {
               className={filter === option.id ? "active" : ""}
               onClick={() => setFilter(option.id)}
             >
-              {option.label} · {option.n}
+              {option.label}
+              <span className="chip-count">{option.n}</span>
             </button>
           ))}
         </div>
       )}
 
       {!updates ? (
-        <div className="card empty-state">Loading…</div>
+        <div className="empty-state">Loading…</div>
       ) : !shown.length ? (
-        <div className="card empty-state all-clear">
-          <CheckCircle2 size={28} />
+        <div className="empty-state all-clear">
+          <CheckCircle2 size={28} aria-hidden="true" />
           <strong>All caught up</strong>
           <span>Nothing needs your attention right now.</span>
         </div>
       ) : (
-        <div className="card menu-card">
+        <div className="menu-card">
           {shown.map((item) => (
             <UpdateRow key={item.key} item={item} />
           ))}

@@ -106,8 +106,7 @@ export default function NotesPage({
         subtitle="Keep the context behind site decisions and interactions."
       />
       <div className="notes-layout">
-        <div className="card form-card">
-          <p className="eyebrow">SITE NOTES</p>
+        <div className="form-card note-compose">
           <h2>Add a note</h2>
           <p className="settings-copy">
             Capture deliveries, payments, discussions, and decisions while they
@@ -115,20 +114,21 @@ export default function NotesPage({
           </p>
           <form onSubmit={submit}>
             <div className="field">
-              <label>Note</label>
+              <label htmlFor="note-content">Note</label>
               <textarea
+                id="note-content"
                 name="content"
                 rows="5"
                 placeholder="What happened on site today?"
                 required
               />
             </div>
-            <button className="primary-button" disabled={saving}>
-              <Plus size={16} /> {saving ? "Saving..." : "Add note"}
+            <button type="submit" className="primary-button" disabled={saving}>
+              <Plus size={16} /> {saving ? "Saving…" : "Add note"}
             </button>
           </form>
         </div>
-        <div className="card collection-card">
+        <div className="collection">
           <div className="collection-head">
             <div>
               <h2>Notes & context</h2>
@@ -147,16 +147,17 @@ export default function NotesPage({
                 note.profiles?.email ||
                 "Unknown user";
               const source = ledger
-                ? `Ledger · ${ledger.description || ledger.entry_type}`
+                ? `Ledger: ${ledger.description || ledger.entry_type}`
                 : "Site note";
               const isEditing = editingId === note.id;
               return (
                 <div className="note-item" key={note.id}>
-                  <FileText size={17} />
+                  <FileText size={17} aria-hidden="true" />
                   <div className="note-body">
                     {isEditing ? (
                       <form className="note-edit" onSubmit={saveEdit}>
                         <textarea
+                          aria-label="Edit note"
                           value={draft}
                           onChange={(event) => setDraft(event.target.value)}
                           rows="3"
@@ -183,8 +184,12 @@ export default function NotesPage({
                     ) : (
                       <>
                         <p>{note.content}</p>
-                        <small>
-                          {source} · {formatDate(note.created_at)} · {author}
+                        <small className="note-meta">
+                          <span>{source}</span>
+                          <time dateTime={note.created_at}>
+                            {formatDate(note.created_at)}
+                          </time>
+                          <span>{author}</span>
                         </small>
                       </>
                     )}
@@ -194,15 +199,19 @@ export default function NotesPage({
                     (isBuilder || note.created_by === profile?.id) && (
                       <div className="note-actions">
                         <button
+                          type="button"
                           className="row-action"
                           title="Edit note"
+                          aria-label="Edit note"
                           onClick={() => startEdit(note)}
                         >
                           <Pencil size={14} />
                         </button>
                         <button
+                          type="button"
                           className="row-action danger"
                           title="Delete note"
+                          aria-label="Delete note"
                           onClick={() => remove(note)}
                         >
                           <Trash2 size={14} />

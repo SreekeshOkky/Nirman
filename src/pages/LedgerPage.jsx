@@ -191,7 +191,7 @@ export default function LedgerPage({
         }
       });
       if (!result.amount && !result.counterparty) {
-        flash("Couldn't read that screenshot — please add the entry manually.");
+        flash("Couldn’t read that screenshot. Please add the entry by hand.");
       }
       setPrefill(result);
       setPrefillReceipt(file);
@@ -268,11 +268,12 @@ export default function LedgerPage({
         subtitle="Track every rupee moving through this site."
       >
         {scanEnabled && (
-          <button className="secondary-button" onClick={openScan}>
+          <button type="button" className="secondary-button" onClick={openScan}>
             <ScanLine size={16} /> Scan UPI
           </button>
         )}
         <button
+          type="button"
           className="primary-button"
           onClick={() => {
             setEditing(null);
@@ -292,19 +293,22 @@ export default function LedgerPage({
           onChange={handleScanFile}
         />
       </PageHeading>
-      <div className="card ledger-card full-card">
+      <div className="ledger-card">
         <div className="ledger-controls">
           <div className="search-box">
-            <Search size={16} />
+            <Search size={16} aria-hidden="true" />
             <input
+              type="search"
+              aria-label="Search entries"
               placeholder="Search entries"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
           <div className="filter-wrap">
-            <Filter size={15} />
+            <Filter size={15} aria-hidden="true" />
             <select
+              aria-label="Show"
               value={type}
               onChange={(event) => setType(event.target.value)}
             >
@@ -314,11 +318,12 @@ export default function LedgerPage({
             </select>
           </div>
         </div>
-        <div className="table-header">
-          <span>ENTRY</span>
-          <span>DATE</span>
-          <span>ADDED BY</span>
-          <span>AMOUNT</span>
+        <div className="table-header" aria-hidden="true">
+          <span>Date</span>
+          <span>Entry</span>
+          <span>Added by</span>
+          <span>Amount</span>
+          <span />
         </div>
         <div className="ledger-rows">
           {filtered.map((entry) => (
@@ -378,11 +383,12 @@ export default function LedgerPage({
               Cancel
             </button>
             <button
-              className="primary-button danger-button"
+              type="button"
+              className="danger-button"
               disabled={saving}
               onClick={confirmRemove}
             >
-              <Trash2 size={16} /> {saving ? "Deleting..." : "Delete entry"}
+              <Trash2 size={16} /> {saving ? "Deleting…" : "Delete entry"}
             </button>
           </div>
         </Modal>
@@ -403,14 +409,12 @@ export default function LedgerPage({
       {scanning && (
         <Modal
           title="Reading screenshot"
-          subtitle="This runs on your device — the image is never uploaded."
+          subtitle="This runs on your device. The image is never uploaded."
           onClose={() => {}}
         >
           <div className="scan-progress">
             <div className="scan-progress-track">
-              <i
-                style={{ width: `${Math.round((scanProgress || 0) * 100)}%` }}
-              />
+              <i style={{ transform: `scaleX(${scanProgress || 0})` }} />
             </div>
             <p className="scan-status">{scanStatus || "Working…"}</p>
             <p className="field-hint">

@@ -114,11 +114,15 @@ export default function TeamPage({
         title="Team & access"
         subtitle="Manage who can contribute to this site."
       >
-        <button className="primary-button" onClick={() => setShow(true)}>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => setShow(true)}
+        >
           <UserPlus size={17} /> Invite supervisor
         </button>
       </PageHeading>
-      <div className="card collection-card">
+      <div className="collection">
         <div className="collection-head">
           <div>
             <h2>Team members</h2>
@@ -126,7 +130,7 @@ export default function TeamPage({
           </div>
         </div>
         <div className="member-row">
-          <div className="avatar avatar-dark">
+          <div className="avatar avatar-dark" aria-hidden="true">
             {getInitials(profile?.full_name) || "?"}
           </div>
           <div>
@@ -141,7 +145,7 @@ export default function TeamPage({
           <>
             {members.map((member) => (
               <div className="member-row" key={member.id}>
-                <div className="avatar avatar-blue">
+                <div className="avatar" aria-hidden="true">
                   {getInitials(member.profiles?.full_name) ||
                     (member.profiles?.email
                       ? member.profiles.email[0].toUpperCase()
@@ -157,6 +161,7 @@ export default function TeamPage({
                 </div>
                 <span className="role-tag supervisor">Supervisor</span>
                 <button
+                  type="button"
                   className="row-action danger"
                   title="Remove from site"
                   aria-label="Remove from site"
@@ -181,14 +186,14 @@ export default function TeamPage({
               <div>
                 <h2>Pending invitations</h2>
                 <p>
-                  They'll join this site as soon as they sign in for the first
+                  They’ll join this site as soon as they sign in for the first
                   time.
                 </p>
               </div>
             </div>
             {invites.map((item) => (
               <div className="member-row" key={item.id}>
-                <div className="avatar avatar-blue">
+                <div className="avatar avatar-pending" aria-hidden="true">
                   {item.email[0].toUpperCase()}
                 </div>
                 <div>
@@ -202,6 +207,7 @@ export default function TeamPage({
                   </small>
                 </div>
                 <button
+                  type="button"
                   className="secondary-button"
                   disabled={busyId === item.id}
                   onClick={() => resend(item)}
@@ -209,6 +215,7 @@ export default function TeamPage({
                   <Mail size={14} /> Resend
                 </button>
                 <button
+                  type="button"
                   className="row-action danger"
                   title="Cancel invitation"
                   aria-label="Cancel invitation"
@@ -222,7 +229,7 @@ export default function TeamPage({
           </>
         )}
         <div className="soft-callout">
-          <ShieldCheck size={18} />
+          <ShieldCheck size={18} aria-hidden="true" />
           <span>
             Audit logs and site settings are visible only to builders.
           </span>

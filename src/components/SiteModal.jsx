@@ -11,8 +11,9 @@ export default function SiteModal({ onClose, onSubmit, saving }) {
     >
       <form onSubmit={onSubmit}>
         <div className="field">
-          <label>Site name</label>
+          <label htmlFor="site-name">Site name</label>
           <input
+            id="site-name"
             name="name"
             placeholder="e.g. Palm Court Renovation"
             required
@@ -20,26 +21,40 @@ export default function SiteModal({ onClose, onSubmit, saving }) {
         </div>
         <div className="form-grid">
           <div className="field">
-            <label>Location</label>
-            <input name="location" placeholder="City or address" />
+            <label htmlFor="site-location">Location</label>
+            <input
+              id="site-location"
+              name="location"
+              placeholder="City or address"
+            />
           </div>
           <div className="field">
-            <label>Budget</label>
-            <input name="budget" type="number" placeholder="₹ 0" />
+            <label htmlFor="site-budget">Budget</label>
+            <input
+              id="site-budget"
+              name="budget"
+              type="number"
+              inputMode="numeric"
+              placeholder="₹ 0"
+            />
           </div>
         </div>
         <div className="field">
-          <label>
+          <label htmlFor="site-client">
             Client name <span>Optional</span>
           </label>
-          <input name="client_name" placeholder="Client or owner" />
+          <input
+            id="site-client"
+            name="client_name"
+            placeholder="Client or owner"
+          />
         </div>
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancel
           </button>
-          <button className="primary-button" disabled={saving}>
-            <Plus size={17} /> {saving ? "Creating..." : "Create site"}
+          <button type="submit" className="primary-button" disabled={saving}>
+            <Plus size={17} /> {saving ? "Creating…" : "Create site"}
           </button>
         </div>
       </form>

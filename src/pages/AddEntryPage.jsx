@@ -10,7 +10,7 @@ export default function AddEntryPage({ activeSites, sitesLoading }) {
   const [params] = useSearchParams();
   const suffix = params.get("shared") === "1" ? "" : "?add=1";
 
-  if (sitesLoading) return <div className="auth-loading">Loading...</div>;
+  if (sitesLoading) return <div className="auth-loading">Loading…</div>;
   if (activeSites.length === 1)
     return <Navigate to={`/sites/${activeSites[0].id}${suffix}`} replace />;
 
@@ -20,14 +20,14 @@ export default function AddEntryPage({ activeSites, sitesLoading }) {
         <h1>Which site is this for?</h1>
       </div>
       {activeSites.length ? (
-        <div className="card menu-card">
+        <div className="menu-card">
           {activeSites.map((site) => (
             <Link
               key={site.id}
               to={`/sites/${site.id}${suffix}`}
               className="menu-row"
             >
-              <span className="menu-row-icon">
+              <span className="menu-row-icon" aria-hidden="true">
                 <Building2 size={19} />
               </span>
               <span className="menu-row-text">
@@ -39,7 +39,7 @@ export default function AddEntryPage({ activeSites, sitesLoading }) {
           ))}
         </div>
       ) : (
-        <div className="card empty-state">
+        <div className="empty-state">
           There’s no active site to add to yet.{" "}
           <Link to="/" className="text-link">
             Go to your sites

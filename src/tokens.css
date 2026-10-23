@@ -1,0 +1,74 @@
+/* Tokens: Squeeze's material (Gabarito over Manrope, tiles, pills, one
+   raised card) in the app's original palette. lib/theme.js injects
+   VITE_THEME_ACCENT as --brand-accent on <html>; every accent shade is mixed
+   from it, so a rebrand is one variable. */
+:root {
+  color-scheme: light;
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem; --text-3xl: 2.074rem;
+  --text-display-s: 1.728rem; --text-display: 2.074rem; --text-section: 1.25rem; --text-title: 1rem; --text-lead: 1rem;
+  --text-figure: 2.488rem; --text-figure-l: 2.986rem; --text-hero: 3.583rem;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --container: 1120px; --gutter: 40px; --gap-columns: 24px; --section-gap-s: 120px; --section-gap: 144px; --section-gap-l: 176px;
+  --sidebar: 248px; --control: 40px; --control-s: 32px; --bottom-bar: 68px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+
+  /* The original ground, surfaces and ink */
+  --color-paper: #f6f4f0;
+  --color-surface: #ffffff;
+  --color-paper-2: #f0ece5;
+  --color-paper-3: #e8e2d8;
+  --color-sidebar: #f0ece5;
+  --color-ink: #1c1a17;
+  --color-ink-2: #57524a;
+  --color-muted: #6b655b;
+  --color-rule: #ece7df;
+  --color-rule-strong: #d9d2c6;
+  --color-field-edge: #958d81;
+  --color-track: #ece7df;
+
+  /* The accent: the primary action, a chosen choice and focus */
+  --color-accent: var(--brand-accent, #b8481a);
+  --color-accent-deep: color-mix(in srgb, var(--color-accent) 88%, black);
+  --color-accent-text: color-mix(in srgb, var(--color-accent) 82%, black);
+  --color-accent-soft: color-mix(in srgb, var(--color-accent) 13%, var(--color-surface));
+  --color-accent-rim: color-mix(in srgb, var(--color-accent) 35%, var(--color-surface));
+  --color-accent-ink: #ffffff;
+  --color-focus: color-mix(in srgb, var(--color-accent) 82%, black);
+
+  /* The deep band: the month, a site's budget and the sign-in panel */
+  --color-hero: #2b211b;
+  --color-hero-ink: #ffffff;
+  --color-hero-muted: #d8cdc3;
+  --color-hero-accent: #f6b48c;
+  --color-hero-rule: #4a3d34;
+  --color-hero-track: #4a3d34;
+
+  /* Status: money in, warnings, problems, information */
+  --color-income: #2f7d57;
+  --color-income-strong: #17673e;
+  --color-income-soft: #e2f0e7;
+  --color-warning: #8a5300;
+  --color-warning-bar: #c98a1b;
+  --color-warning-soft: #fbefd6;
+  --color-danger: #a8231b;
+  --color-danger-deep: #8c1c15;
+  --color-danger-bar: #c0362c;
+  --color-danger-soft: #fbe6e3;
+  --color-danger-ink: #ffffff;
+  --color-error: #a8231b;
+  --color-info: #2a5788;
+  --color-info-soft: #e5edf6;
+  --color-scrim: rgba(28, 26, 23, 0.45);
+
+  --font-display: "Gabarito", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: var(--font-display);
+  --font-code: ui-monospace, "SF Mono", Menlo, monospace;
+  --radius-card: 24px; --radius-control: 16px; --radius-input: 16px; --radius-inner: 10px; --radius-pill: 999px;
+  --rule-hair: 1px; --rule-bar: 2px;
+  --shadow-card: 0 1px 2px rgba(43, 33, 27, 0.05), 0 14px 32px -16px rgba(43, 33, 27, 0.28);
+  --shadow-lift: 0 20px 48px rgba(43, 33, 27, 0.16);
+  --tracking-display: -0.025em; --display-weight: 800;
+}

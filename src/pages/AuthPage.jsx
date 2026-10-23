@@ -44,7 +44,7 @@ export default function AuthPage({
         (mode === "signup"
           ? "Check your email to confirm your account."
           : mode === "reset"
-            ? "If that email has an account, we've sent a link to set a new password."
+            ? "If that email has an account, we’ve sent a link to set a new password."
             : "Signed in."),
     );
   }
@@ -59,17 +59,38 @@ export default function AuthPage({
           <BrandMark />
           <span>{brand.name}</span>
         </div>
-        <div>
-          <p className="eyebrow">A CLEARER BUILD</p>
+        <div className="auth-art-copy">
           <h1>
             Every rupee.
             <br />
-            <em>Accounted for.</em>
+            Accounted for.
           </h1>
           <p>
             One calm place for the work, money, and people behind every site.
           </p>
         </div>
+        <figure className="auth-slip slip expense" aria-hidden="true">
+          <div className="detail-banner expense">
+            <div>
+              <span className="detail-banner-type">Paid out</span>
+              <strong className="detail-amount expense">−₹24,000</strong>
+            </div>
+            <span className="slip-stamp done">
+              Receipt attached
+              <small>Example</small>
+            </span>
+          </div>
+          <dl className="detail-grid">
+            <div className="detail-item">
+              <dt className="detail-label">Paid to</dt>
+              <dd className="detail-value">Example Cement Co.</dd>
+            </div>
+            <div className="detail-item">
+              <dt className="detail-label">How</dt>
+              <dd className="detail-value">UPI</dd>
+            </div>
+          </dl>
+        </figure>
         <div className="auth-art-footer">
           <span>Construction ledger</span>
           <span>Est. 2024</span>
@@ -79,7 +100,6 @@ export default function AuthPage({
         <div className="auth-form">
           {configurationMissing ? (
             <>
-              <p className="eyebrow">SETUP REQUIRED</p>
               <h2>Connect {brand.name}</h2>
               <p className="auth-subtitle">
                 Supabase environment variables are missing. Add
@@ -93,13 +113,6 @@ export default function AuthPage({
             </>
           ) : (
             <>
-              <p className="eyebrow">
-                {mode === "signin"
-                  ? "WELCOME BACK"
-                  : mode === "reset"
-                    ? "FORGOT PASSWORD"
-                    : "GET STARTED"}
-              </p>
               <h2>
                 {mode === "signin"
                   ? `Sign in to ${brand.name}`
@@ -109,20 +122,28 @@ export default function AuthPage({
               </h2>
               <p className="auth-subtitle">
                 {mode === "reset"
-                  ? "Enter your email and we'll send you a link to choose a new password."
+                  ? "Enter your email and we’ll send you a link to choose a new password."
                   : "Track your sites with confidence."}
               </p>
               <form onSubmit={submit}>
                 {mode === "signup" && (
                   <div className="field">
-                    <label>Full name</label>
-                    <input name="name" placeholder="Ravi Kumar" required />
+                    <label htmlFor="auth-name">Full name</label>
+                    <input
+                      id="auth-name"
+                      name="name"
+                      autoComplete="name"
+                      placeholder="Ravi Kumar"
+                      required
+                    />
                   </div>
                 )}
                 <div className="field">
-                  <label>Email address</label>
+                  <label htmlFor="auth-email">Email address</label>
                   <input
+                    id="auth-email"
                     name="email"
+                    autoComplete="email"
                     type="email"
                     placeholder="you@company.com"
                     required
@@ -130,9 +151,13 @@ export default function AuthPage({
                 </div>
                 {mode !== "reset" && (
                   <div className="field">
-                    <label>Password</label>
+                    <label htmlFor="auth-password">Password</label>
                     <input
+                      id="auth-password"
                       name="password"
+                      autoComplete={
+                        mode === "signin" ? "current-password" : "new-password"
+                      }
                       type="password"
                       placeholder="At least 6 characters"
                       minLength="6"
@@ -150,11 +175,12 @@ export default function AuthPage({
                   </div>
                 )}
                 <button
+                  type="submit"
                   className="primary-button auth-submit"
                   disabled={loading}
                 >
                   {loading
-                    ? "Please wait..."
+                    ? "Please wait…"
                     : mode === "signin"
                       ? "Sign in"
                       : mode === "reset"
@@ -163,14 +189,19 @@ export default function AuthPage({
                 </button>
               </form>
               {message && (
-                <p className={`auth-message ${isError ? "error" : ""}`}>
+                <p
+                  className={`auth-message ${isError ? "error" : ""}`}
+                  role={isError ? "alert" : "status"}
+                >
                   {message}
                 </p>
               )}
               {mode === "reset" ? (
                 <p className="auth-switch">
                   Remembered it?{" "}
-                  <button onClick={() => switchMode("signin")}>Sign in</button>
+                  <button type="button" onClick={() => switchMode("signin")}>
+                    Sign in
+                  </button>
                 </p>
               ) : (
                 signupEnabled && (
@@ -179,6 +210,7 @@ export default function AuthPage({
                       ? `New to ${brand.name}?`
                       : "Already have an account?"}{" "}
                     <button
+                      type="button"
                       onClick={() =>
                         switchMode(mode === "signin" ? "signup" : "signin")
                       }

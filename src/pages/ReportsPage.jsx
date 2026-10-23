@@ -132,7 +132,7 @@ export default function ReportsPage({ embedded = false, site, siteId, token }) {
         title="Reports"
         subtitle="Understand the financial health of this construction site."
       >
-        <button className="secondary-button" onClick={exportAll}>
+        <button type="button" className="secondary-button" onClick={exportAll}>
           <Download size={15} /> Export all entries
         </button>
       </PageHeading>
@@ -140,11 +140,11 @@ export default function ReportsPage({ embedded = false, site, siteId, token }) {
       {!embedded && (
         <section className="report-summary">
           <div className="card report-hero">
-            <p className="eyebrow">SITE PERFORMANCE</p>
             <h2>{site.name}</h2>
             <p>Complete financial picture for your selected site.</p>
             <div className="report-big-number">
-              {money(summary.balance)} <span>net balance</span>
+              <span className="figure">{money(summary.balance)}</span>{" "}
+              <span>net balance</span>
             </div>
           </div>
           <div className="card report-stat">
@@ -172,7 +172,7 @@ export default function ReportsPage({ embedded = false, site, siteId, token }) {
               <div className="category-bar" key={name}>
                 <div>
                   <span>{name}</span>
-                  <strong>{money(amount)}</strong>
+                  <strong className="figure">{money(amount)}</strong>
                 </div>
                 <div className="bar-line">
                   <i
@@ -198,6 +198,7 @@ export default function ReportsPage({ embedded = false, site, siteId, token }) {
               {monthly.length > 0 && (
                 <select
                   className="monthly-select"
+                  aria-label="Month"
                   value={selectedMonth}
                   onChange={(event) => setSelectedMonth(event.target.value)}
                 >
@@ -209,6 +210,7 @@ export default function ReportsPage({ embedded = false, site, siteId, token }) {
                 </select>
               )}
               <button
+                type="button"
                 className="secondary-button card-export"
                 onClick={exportSelectedMonth}
                 disabled={!selectedMonth}

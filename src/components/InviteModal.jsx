@@ -11,9 +11,11 @@ export default function InviteModal({ onClose, onSubmit, saving }) {
     >
       <form onSubmit={onSubmit}>
         <div className="field">
-          <label>Email address</label>
+          <label htmlFor="invite-email">Email address</label>
           <input
+            id="invite-email"
             name="email"
+            autoComplete="email"
             type="email"
             placeholder="supervisor@company.com"
             required
@@ -29,8 +31,8 @@ export default function InviteModal({ onClose, onSubmit, saving }) {
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancel
           </button>
-          <button className="primary-button" disabled={saving}>
-            <UserPlus size={16} /> {saving ? "Sending..." : "Send invitation"}
+          <button type="submit" className="primary-button" disabled={saving}>
+            <UserPlus size={16} /> {saving ? "Sending…" : "Send invitation"}
           </button>
         </div>
       </form>

@@ -63,10 +63,15 @@ export default function SitePage({
           </Link>
         )}
         <h1>{site.name}</h1>
-        <p>
-          {[site.location, site.client_name && `Client: ${site.client_name}`]
-            .filter(Boolean)
-            .join(" · ") || "Location not added"}
+        <p className="site-meta">
+          {site.location || site.client_name ? (
+            <>
+              {site.location && <span>{site.location}</span>}
+              {site.client_name && <span>Client: {site.client_name}</span>}
+            </>
+          ) : (
+            <span>Location not added</span>
+          )}
         </p>
         {archived && (
           <p className="site-archived-note">
@@ -77,11 +82,11 @@ export default function SitePage({
       </div>
 
       {isBuilder && summary && (
-        <section className="site-budget card" aria-label="Budget">
+        <section className={`site-budget tray ${tone}`} aria-label="Budget">
           <div className="site-budget-top">
             <div>
               <span>Spent</span>
-              <strong>{money(spent)}</strong>
+              <strong className="figure">{money(spent)}</strong>
             </div>
             {budget > 0 && (
               <span className={`budget-badge ${tone}`}>
@@ -90,20 +95,23 @@ export default function SitePage({
             )}
           </div>
           {budget > 0 && (
-            <div className="budget-bar">
-              <i className={tone} style={{ width: `${Math.min(100, pct)}%` }} />
+            <div className="budget-bar" aria-hidden="true">
+              <i
+                className={tone}
+                style={{ transform: `scaleX(${Math.min(100, pct) / 100})` }}
+              />
             </div>
           )}
-          <div className="site-budget-stats">
+          <dl className="site-budget-stats">
             <div>
-              <span>Received from client</span>
-              <strong className="positive">{money(received)}</strong>
+              <dt>Received from client</dt>
+              <dd className="figure positive">{money(received)}</dd>
             </div>
             <div>
-              <span>Cash in hand</span>
-              <strong>{money(received - spent)}</strong>
+              <dt>Cash in hand</dt>
+              <dd className="figure">{money(received - spent)}</dd>
             </div>
-          </div>
+          </dl>
         </section>
       )}
 

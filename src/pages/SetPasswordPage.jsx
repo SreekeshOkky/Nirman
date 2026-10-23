@@ -20,7 +20,7 @@ export default function SetPasswordPage({
     const form = new FormData(event.currentTarget);
     const password = form.get("password");
     if (password !== form.get("confirm")) {
-      setError("The two passwords don't match.");
+      setError("The two passwords don’t match.");
       return;
     }
     setSaving(true);
@@ -50,22 +50,28 @@ export default function SetPasswordPage({
       </div>
       <div className="auth-panel">
         <div className="auth-form">
-          <p className="eyebrow">ONE LAST STEP</p>
           <h2>Choose your password</h2>
           <p className="auth-subtitle">
-            You'll use this with your email to sign in to {brand.name} next
+            You’ll use this with your email to sign in to {brand.name} next
             time.
           </p>
           <form onSubmit={submit}>
             {needsName && (
               <div className="field">
-                <label>Your name</label>
-                <input name="name" placeholder="Ravi Kumar" required />
+                <label htmlFor="setpw-name">Your name</label>
+                <input
+                  id="setpw-name"
+                  name="name"
+                  autoComplete="name"
+                  placeholder="Ravi Kumar"
+                  required
+                />
               </div>
             )}
             <div className="field">
-              <label>New password</label>
+              <label htmlFor="setpw-password">New password</label>
               <input
+                id="setpw-password"
                 name="password"
                 type="password"
                 placeholder="At least 6 characters"
@@ -75,8 +81,9 @@ export default function SetPasswordPage({
               />
             </div>
             <div className="field">
-              <label>Confirm password</label>
+              <label htmlFor="setpw-confirm">Confirm password</label>
               <input
+                id="setpw-confirm"
                 name="confirm"
                 type="password"
                 minLength="6"
@@ -84,11 +91,19 @@ export default function SetPasswordPage({
                 required
               />
             </div>
-            <button className="primary-button auth-submit" disabled={saving}>
-              {saving ? "Saving..." : "Save and continue"}
+            <button
+              type="submit"
+              className="primary-button auth-submit"
+              disabled={saving}
+            >
+              {saving ? "Saving…" : "Save and continue"}
             </button>
           </form>
-          {error && <p className="auth-message error">{error}</p>}
+          {error && (
+            <p className="auth-message error" role="alert">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -13,8 +13,10 @@ import { formatDate, money } from "./Shared";
 function Detail({ label, children, full }) {
   return (
     <div className={`detail-item${full ? " full" : ""}`}>
-      <span className="detail-label">{label}</span>
-      <div className="detail-value">{children || "—"}</div>
+      <dt className="detail-label">{label}</dt>
+      <dd className={`detail-value${children ? "" : " empty"}`}>
+        {children || "Not added"}
+      </dd>
     </div>
   );
 }
@@ -81,7 +83,7 @@ export default function EntryDetailModal({
       >
         <div className="empty-state">{error}</div>
         <div className="modal-actions">
-          <button className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose}>
             Close
           </button>
         </div>
@@ -92,7 +94,7 @@ export default function EntryDetailModal({
     return (
       <Modal
         title="Ledger entry"
-        subtitle="Loading details..."
+        subtitle="Loading details…"
         onClose={onClose}
       >
         <div className="empty-state">Loading…</div>
@@ -112,8 +114,9 @@ export default function EntryDetailModal({
       subtitle={entry.paid_to || entry.categories?.name || "Entry"}
       onClose={onClose}
     >
+      <div className={`slip ${type}`}>
       <div className={`detail-banner ${type}`}>
-        <span className={`detail-type-icon ${type}`}>
+        <span className={`detail-type-icon ${type}`} aria-hidden="true">
           {isIncome ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
         </span>
         <div>
@@ -121,12 +124,19 @@ export default function EntryDetailModal({
             {isIncome ? "Received" : "Paid out"}
           </span>
           <strong className={`detail-amount ${type}`}>
-            {isIncome ? "+" : "-"}
+            {isIncome ? "+" : "−"}
             {money(entry.amount)}
           </strong>
         </div>
+        <span
+          className={`slip-stamp ${attachment ? "done" : "pending"}`}
+          aria-hidden="true"
+        >
+          {attachment ? "Receipt attached" : "No receipt yet"}
+          <small>{formatDate(entry.entry_date)}</small>
+        </span>
       </div>
-      <div className="detail-grid">
+      <dl className="detail-grid">
         <Detail label={isIncome ? "Received from" : "Paid to"}>
           {entry.paid_to}
         </Detail>
@@ -161,7 +171,11 @@ export default function EntryDetailModal({
               <Camera size={18} />
               <span>{uploading ? "Uploading…" : "Add receipt photo"}</span>
             </label>
-            {uploadError && <p className="field-hint">{uploadError}</p>}
+            {uploadError && (
+              <p className="field-hint error" role="alert">
+                {uploadError}
+              </p>
+            )}
           </Detail>
         )}
         {attachment && (
@@ -178,9 +192,10 @@ export default function EntryDetailModal({
             </a>
           </Detail>
         )}
+      </dl>
       </div>
       <div className="modal-actions">
-        <button className="secondary-button" onClick={onClose}>
+        <button type="button" className="secondary-button" onClick={onClose}>
           Close
         </button>
       </div>
