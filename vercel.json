@@ -6,6 +6,14 @@
   ],
   "rewrites": [
     {
+      "source": "/api/ocr",
+      "destination": "/api/ocr.js"
+    },
+    {
+      "source": "/api/telegram/webhook",
+      "destination": "/api/bot.py"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
     },
@@ -13,5 +21,17 @@
       "source": "/((?!assets/|icons/|manifest\\.webmanifest|sw\\.js|workbox-).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60
+    },
+    "api/bot.py": {
+      "maxDuration": 60
+    },
+    "api/ocr.js": {
+      "maxDuration": 60,
+      "includeFiles": "node_modules/tesseract.js*/**"
+    }
+  }
 }

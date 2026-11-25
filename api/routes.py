@@ -17,7 +17,7 @@ from .config import get_settings
 from .dependencies import Builder, User, ensure_site_access, ensure_site_active, forget_profile, get_admin_client, get_auth_client, maybe_one, require_feature
 from .features import FEATURE_AUDIT_LOG, FEATURE_CATEGORIES, FEATURE_NOTES, get_features, is_enabled
 from .schemas import CategoryCreate, CategoryUpdate, InvitationCreate, LedgerCreate, LedgerUpdate, NoteCreate, NoteUpdate, ProfileUpdate, SiteCreate, SiteUpdate
-from .services import record_audit
+from .services import accessible_sites, attach_receipt, insert_ledger_entry, record_audit, site_categories, validate_category
 
 router = APIRouter()
 # Feature-gated sub-routers: their dependencies run before endpoint-level auth,
@@ -61,21 +61,7 @@ def update_me(update: ProfileUpdate, user: User):
 @router.get("/sites")
 def list_sites(user: User, include_archived: bool = Query(default=False)):
     """Active sites by default; archived (inactive) ones stay hidden unless asked for."""
-    db = get_admin_client()
-    query = db.table("sites").select("*").eq("owner_id", user.id)
-    if not include_archived:
-        query = query.neq("status", "archived")
-    owned = query.execute().data or []
-    member_rows = db.table("site_members").select("site_id").eq("user_id", user.id).execute().data or []
-    member_ids = [row["site_id"] for row in member_rows]
-    invited = []
-    if member_ids:
-        invited_query = db.table("sites").select("*").in_("id", member_ids)
-        if not include_archived:
-            invited_query = invited_query.neq("status", "archived")
-        invited = invited_query.execute().data or []
-    seen = {site["id"] for site in owned}
-    return owned + [site for site in invited if site["id"] not in seen]
+    return accessible_sites(get_admin_client(), user.id, include_archived=include_archived)
 
 
 @router.get("/overview")
@@ -335,27 +321,7 @@ def disable_my_category(category_id: str, user: User):
 @router.get("/sites/{site_id}/categories")
 def list_categories(site_id: str, user: User):
     site = ensure_site_access(site_id, user)
-    db = get_admin_client()
-    site_rows = (
-        db.table("categories").select("*").eq("site_id", site_id).eq("is_active", True).execute().data or []
-    )
-    user_rows = (
-        db.table("categories")
-        .select("*")
-        .is_("site_id", "null")
-        .eq("created_by", site["owner_id"])
-        .eq("is_active", True)
-        .execute()
-        .data
-        or []
-    )
-    by_name: dict[str, dict] = {}
-    for row in user_rows + site_rows:
-        key = row["name"].lower()
-        preferred = row.get("site_id") is None
-        if key not in by_name or preferred:
-            by_name[key] = row
-    return sorted(by_name.values(), key=lambda row: row["name"].lower())
+    return site_categories(get_admin_client(), site)
 
 
 @router.get("/sites/{site_id}/members")
@@ -530,34 +496,11 @@ def list_ledger(
     return {"items": response.data or [], "page": page, "page_size": page_size, "total": response.count or 0}
 
 
-def _validate_category(db, site: dict, category_id: str, entry_type: str) -> dict:
-    category = maybe_one(db.table("categories").select("*").eq("id", category_id).eq("is_active", True))
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
-    site_level = category.get("site_id")
-    usable = site_level == site["id"] or (
-        site_level is None and category.get("created_by") == site["owner_id"]
-    )
-    if not usable or category["type"] not in (entry_type, "both"):
-        raise HTTPException(status_code=422, detail="Category is not available for this entry type")
-    return category
-
-
 @router.post("/sites/{site_id}/ledger", status_code=status.HTTP_201_CREATED)
 def create_ledger_entry(site_id: str, payload: LedgerCreate, user: User):
     site = ensure_site_access(site_id, user)
     ensure_site_active(site)
-    db = get_admin_client()
-    category = _validate_category(db, site, str(payload.category_id), payload.entry_type)
-    row = payload.model_dump(mode="json", exclude={"note"})
-    row.update({"site_id": site_id, "created_by": user.id})
-    response = db.table("ledger_entries").insert(row).execute()
-    entry = response.data[0]
-    if payload.note and is_enabled(FEATURE_NOTES):
-        db.table("notes").insert({"site_id": site_id, "ledger_entry_id": entry["id"], "created_by": user.id, "content": payload.note}).execute()
-    who = f" {'to' if payload.entry_type == 'expense' else 'from'} {payload.paid_to}" if payload.paid_to else ""
-    record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_created", entity_type="ledger_entry", entity_id=entry["id"], description=f"Added {payload.entry_type} for {category['name']}{who}", metadata={"amount": str(payload.amount), "category": category["name"], "paid_to": payload.paid_to})
-    return entry
+    return insert_ledger_entry(get_admin_client(), site, user.id, payload)
 
 
 @router.get("/sites/{site_id}/ledger/{entry_id}")
@@ -587,7 +530,7 @@ def update_ledger_entry(site_id: str, entry_id: str, payload: LedgerUpdate, user
         raise HTTPException(status_code=400, detail="The entry type cannot be changed when editing. Delete and recreate the entry instead.")
     entry_type = changes.get("entry_type", current["entry_type"])
     if "category_id" in changes or "entry_type" in changes:
-        _validate_category(db, site, changes.get("category_id", current["category_id"]), entry_type)
+        validate_category(db, site, changes.get("category_id", current["category_id"]), entry_type)
     updated = db.table("ledger_entries").update({**changes, "updated_by": user.id}).eq("id", entry_id).execute().data[0]
     record_audit(db, site_id=site_id, actor_id=user.id, action="ledger_entry_updated", entity_type="ledger_entry", entity_id=entry_id, description="Updated ledger entry", metadata=jsonable_encoder({"before": current, "after": updated}))
     return updated
@@ -772,9 +715,8 @@ def upload_attachment(site_id: str, user: User, file: UploadFile = File(...), le
         raise HTTPException(status_code=404, detail="Ledger entry not found")
     path = f"{site_id}/{ledger_entry_id or 'site'}/{datetime.now(timezone.utc).timestamp()}-{file.filename}"
     db.storage.from_("receipts").upload(path, content, {"content-type": file.content_type or "application/octet-stream"})
-    attachment = db.table("attachments").insert({"site_id": site_id, "ledger_entry_id": ledger_entry_id, "uploaded_by": user.id, "file_name": file.filename, "storage_path": path, "mime_type": file.content_type, "file_size": len(content)}).execute().data[0]
+    attachment = attach_receipt(db, site_id=site_id, user_id=user.id, ledger_entry_id=ledger_entry_id, storage_path=path, file_name=file.filename, mime_type=file.content_type, file_size=len(content))
     signed = db.storage.from_("receipts").create_signed_url(path, 3600)
-    record_audit(db, site_id=site_id, actor_id=user.id, action="receipt_uploaded", entity_type="attachment", entity_id=attachment["id"], description=f"Uploaded {file.filename}")
     return {**attachment, "signed_url": signed.get("signedURL") or signed.get("signedUrl")}
 
 

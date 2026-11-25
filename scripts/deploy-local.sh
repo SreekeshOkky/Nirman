@@ -74,9 +74,20 @@ tmp="$(mktemp)"
 } > "$tmp"
 mv "$tmp" .env
 
-echo "==> Building and starting the app (web + api)"
-docker compose up --build -d
+COMPOSE_PROFILES=()
+if grep -qE '^TELEGRAM_BOT_TOKEN=.+' .env; then
+  echo "==> Telegram bot token found; starting the bot (long polling)"
+  COMPOSE_PROFILES=(--profile telegram)
+fi
+
+echo "==> Building and starting the app (web + api + ocr)"
+docker compose ${COMPOSE_PROFILES[@]+"${COMPOSE_PROFILES[@]}"} up --build -d
 
 echo
 echo "Done. Open http://localhost:8080"
 echo "Sign in with $BUILDER_EMAIL"
+if [[ ${#COMPOSE_PROFILES[@]} -eq 0 ]]; then
+  echo "Telegram bot: create one with @BotFather, then run"
+  echo "  TELEGRAM_BOT_TOKEN=<token> python3 scripts/setup_telegram.py --write-env"
+  echo "and re-run this script."
+fi

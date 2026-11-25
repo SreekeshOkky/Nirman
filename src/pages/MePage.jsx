@@ -4,6 +4,7 @@ import {
   ChevronRight,
   History,
   LogOut,
+  Send,
   Settings2,
   Tag,
 } from "lucide-react";
@@ -94,6 +95,14 @@ export default function MePage({ profile, isBuilder, features }) {
             title="Your name"
             detail="How you appear to your team"
           />
+          {enabled("telegram") && (
+            <MenuRow
+              to="/me/telegram"
+              icon={Send}
+              title="Telegram"
+              detail="Send UPI screenshots to add expenses"
+            />
+          )}
         </div>
       </section>
 

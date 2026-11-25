@@ -27,7 +27,45 @@ services:
       SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
       FEATURE_FLAGS: ${FEATURE_FLAGS:-}
+      VITE_BRAND_NAME: ${VITE_BRAND_NAME:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      OCR_URL: http://ocr:3001
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
+
+  # Reads UPI screenshots for the Telegram bot (same code as api/ocr.js).
+  ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile.ocr
+    environment:
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-}
+
+  # Telegram bot without a public URL: long-polls Telegram for messages.
+  # Started by deploy-local.sh when TELEGRAM_BOT_TOKEN is in .env, or with
+  #   docker compose --profile telegram up -d
+  bot:
+    profiles: ["telegram"]
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: ["python", "-m", "api.telegram_poll"]
+    environment:
+      SUPABASE_URL: http://host.docker.internal:54321
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-}
+      VITE_BRAND_NAME: ${VITE_BRAND_NAME:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      OCR_URL: http://ocr:3001
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - ocr
+    restart: unless-stopped

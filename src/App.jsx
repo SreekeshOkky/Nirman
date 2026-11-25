@@ -28,6 +28,7 @@ import SitePage from "./pages/SitePage";
 import MePage from "./pages/MePage";
 import AddEntryPage from "./pages/AddEntryPage";
 import UpdatesPage from "./pages/UpdatesPage";
+import TelegramPage from "./pages/TelegramPage";
 import { updatesSeenAt } from "./lib/updates";
 
 export default function App() {
@@ -233,6 +234,10 @@ export default function App() {
           <Route path="updates" element={<UpdatesPage {...context} />} />
           <Route path="me" element={<MePage {...context} />} />
           <Route path="settings" element={<SettingsPage {...context} />} />
+          <Route
+            path="me/telegram"
+            element={featureRoute("telegram", <TelegramPage {...context} />)}
+          />
           <Route
             path="categories"
             element={featureRoute(

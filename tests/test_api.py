@@ -1,9 +1,12 @@
+from datetime import datetime, timezone
 import json
 import os
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "anon")
 os.environ.setdefault("SUPABASE_SECRET_KEY", "secret")
+# With a bot token every feature, telegram included, is on by default.
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -195,20 +198,27 @@ class _Query:
         self.op = "delete"
         return self
 
-    def upsert(self, row, **_):
+    def upsert(self, row, on_conflict=None, ignore_duplicates=False, **_):
         self.op, self.payload = "upsert", row
+        self.conflict_keys = on_conflict.split(",") if on_conflict else ["site_id", "user_id"]
+        self.ignore_duplicates = ignore_duplicates
+        return self
+
+    def limit(self, *_):
         return self
 
     def execute(self):
         rows = self.db.tables.setdefault(self.table, [])
         if self.op == "upsert":
-            match = [row for row in rows if row.get("site_id") == self.payload.get("site_id") and row.get("user_id") == self.payload.get("user_id")]
+            match = [row for row in rows if all(row.get(k) == self.payload.get(k) for k in self.conflict_keys)]
+            if match and self.ignore_duplicates:
+                return _Resp([])
             if match:
                 match[0].update(self.payload)
                 return _Resp(match)
             self.op = "insert"
         if self.op == "insert":
-            row = {"id": f"{self.table}-{len(rows) + 1}", "token": "tok", **self.payload}
+            row = {"id": f"{self.table}-{len(rows) + 1}", "token": "tok", "created_at": datetime.now(timezone.utc).isoformat(), **self.payload}
             rows.append(row)
             return _Resp([row])
         matched = [row for row in rows if all(check(row) for check in self.filters)]

@@ -13,6 +13,7 @@ FEATURE_CATEGORIES = "categories"
 FEATURE_NOTES = "notes"
 FEATURE_SIGNUP = "signup"
 FEATURE_SCAN = "scan"
+FEATURE_TELEGRAM = "telegram"
 
 # Every feature ships enabled. A deployment can switch any of them off by
 # pointing the FEATURE_FLAGS environment variable at a JSON object, e.g.
@@ -23,12 +24,21 @@ DEFAULT_FEATURES: dict[str, bool] = {
     FEATURE_NOTES: True,
     FEATURE_SIGNUP: True,
     FEATURE_SCAN: True,
+    FEATURE_TELEGRAM: True,
 }
 
 
 @lru_cache
 def get_features() -> dict[str, bool]:
     """Resolve the effective feature flags: defaults merged with env overrides."""
+    features = _configured_features()
+    # The bot can't run without a token, so don't offer it in the UI.
+    if not get_settings().telegram_bot_token:
+        features[FEATURE_TELEGRAM] = False
+    return features
+
+
+def _configured_features() -> dict[str, bool]:
     features = dict(DEFAULT_FEATURES)
     raw = (get_settings().feature_flags or "").strip()
     if not raw:

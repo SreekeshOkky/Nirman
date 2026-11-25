@@ -43,7 +43,7 @@ Apply them with:
 ### Step 2 — Feature flags
 
 Ask which features to disable (default: **all enabled**). Available flags:
-`audit_log`, `categories`, `notes`, `signup`, `scan`.
+`audit_log`, `categories`, `notes`, `signup`, `scan`, `telegram`.
 
 Example — disable notes and public sign-up:
 
@@ -54,6 +54,28 @@ Example — disable notes and public sign-up:
 Note: `signup: false` only hides the "Create an account" UI entry point. To
 hard-block registrations, also disable "Allow new users to sign up" in Supabase
 Auth after the project is created.
+
+### Step 2b — Telegram bot (optional)
+
+Ask whether the customer wants the Telegram bot. Users connect their own
+Telegram from **Me → Telegram** in the app, then send a UPI payment screenshot
+to the bot. It reads the amount, payee, UTR and date (or uses the day it was
+sent if the date can't be read), asks which site it's for, and adds it as an
+expense with the screenshot attached.
+
+The customer creates the bot themselves: in Telegram, message **@BotFather**,
+send `/newbot`, and paste the token back. Never write the token into source.
+
+- **Cloud**: give the token to `deploy-cloud.sh` (it prompts, or set
+  `TELEGRAM_BOT_TOKEN`). It sets the env vars and registers the webhook.
+- **Local**: before `deploy-local.sh`, run
+  `TELEGRAM_BOT_TOKEN=<token> python3 scripts/setup_telegram.py --write-env`.
+  The local stack then starts a `bot` container that long-polls Telegram, so
+  no public URL is needed.
+
+Screenshots are read by `api/ocr.js` (Tesseract + sharp, a free Node function
+on Vercel; the `ocr` container locally). The bot is hidden in the app unless
+`TELEGRAM_BOT_TOKEN` is set.
 
 ### Step 3 — Local or cloud?
 
@@ -70,7 +92,8 @@ Run:
 What it does: checks prerequisites (installs/waits for Docker if needed), starts
 the local Supabase stack (`supabase start`), applies migrations, seeds the first
 builder account, writes `.env`, then builds and starts the app with one
-`docker compose up`. The app is served at `http://localhost:8080`.
+`docker compose up` (web, api, ocr, plus the Telegram `bot` when a token is in
+`.env`). The app is served at `http://localhost:8080`.
 
 Prerequisites that must be available: Docker (with the daemon running) and the
 Supabase CLI. The script handles detection and guides installation.
@@ -86,7 +109,8 @@ Run:
 What it does: `supabase login` → create a new Supabase project (asks for a name,
 database password, region, and org) → apply migrations → fetch API keys → seed
 the builder → `vercel login` → create/link a Vercel project → set all env vars
-(brand, feature flags, Supabase keys, `VITE_API_URL=/api`) → `vercel --prod`.
+(brand, feature flags, Supabase keys, `VITE_API_URL=/api`, Telegram secrets if
+a bot token was given) → `vercel --prod` → register the Telegram webhook.
 
 The API runs in the Vercel region nearest the Supabase region (the script
 sets `regions` in `vercel.json`; the repo default is `syd1` for a Sydney
@@ -112,6 +136,12 @@ config (`supabase config push`).
 SUPABASE_URL=... SUPABASE_SERVICE_KEY=... BUILDER_EMAIL=... BUILDER_PASSWORD=... \
   python3 scripts/seed_builder.py
 
+# Telegram bot
+TELEGRAM_BOT_TOKEN=... python3 scripts/setup_telegram.py --write-env          # local
+TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... \
+  python3 scripts/setup_telegram.py --webhook-url https://<app>.vercel.app   # cloud
+python -m api.telegram_poll       # receive messages without a webhook (dev)
+
 # Local
 supabase start
 supabase db reset --yes --local
@@ -132,13 +162,17 @@ vercel --prod
 ## Repo layout (deployment-relevant)
 
 ```text
-api/                 FastAPI backend (Vercel serverless via api/index.py)
+api/                 FastAPI backend (Vercel serverless via api/index.py);
+                     api/bot.py is the Telegram webhook function and
+                     api/ocr.js the Node screenshot-OCR function
+server/              OCR implementation shared by api/ocr.js and Docker
 src/                 React frontend (Vite)
 supabase/            migrations + config.toml (linked ref is in .temp/, gitignored)
 scripts/             Agent automation (check-prereqs, rebrand, seed, deploy-*)
 Dockerfile.web       frontend build -> nginx
 Dockerfile.api       FastAPI -> uvicorn
-docker-compose.yml   local app (web + api)
+Dockerfile.ocr       screenshot OCR -> node (local)
+docker-compose.yml   local app (web + api + ocr, optional Telegram bot)
 nginx.conf           SPA fallback + /api reverse proxy
 vercel.json          Vercel build + rewrites
 ```
@@ -153,5 +187,9 @@ vercel.json          Vercel build + rewrites
 - **Email confirmation links**: after a cloud deploy, add the Vercel URL to
   `supabase/config.toml` under `additional_redirect_urls` and run
   `supabase config push` (the deploy script prints this reminder).
+- **Telegram bot doesn't answer**: run `getWebhookInfo` (printed by
+  `setup_telegram.py --webhook-url ...`) for the last error. Locally, check
+  `docker compose logs bot`. A bot can't use a webhook and polling at once;
+  re-run `setup_telegram.py --webhook-url` after local polling.
 - **Failed seed**: `seed_builder.py` is idempotent for an existing email — it
   finds the existing user and sets `role = 'builder'` instead of failing.

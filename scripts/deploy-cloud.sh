@@ -11,6 +11,9 @@
 #   SUPABASE_ORG_ID         organization id
 #   BUILDER_EMAIL / BUILDER_PASSWORD / BUILDER_NAME
 #   VERCEL_SCOPE            Vercel team slug (optional)
+#   TELEGRAM_BOT_TOKEN      Telegram bot token from @BotFather (optional;
+#                           empty skips the bot)
+#   APP_URL                 production URL, for the Telegram webhook
 
 set -euo pipefail
 
@@ -110,6 +113,23 @@ if [[ -f .env ]]; then
   done
 fi
 
+# Telegram bot (optional): screenshots sent to it become site expenses.
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+if [[ -z "$TELEGRAM_BOT_TOKEN" && -t 0 ]]; then
+  read -rsp "Telegram bot token from @BotFather (Enter to skip): " TELEGRAM_BOT_TOKEN && echo
+fi
+if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+  echo "==> Configuring the Telegram bot"
+  TELEGRAM_BOT_USERNAME="$(curl -fsS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getMe" | json_get "d['result']['username']")"
+  TELEGRAM_WEBHOOK_SECRET="$(openssl rand -hex 24)"
+  INTERNAL_API_SECRET="$(openssl rand -hex 24)"
+  set_env TELEGRAM_BOT_TOKEN "$TELEGRAM_BOT_TOKEN"
+  set_env TELEGRAM_BOT_USERNAME "$TELEGRAM_BOT_USERNAME"
+  set_env TELEGRAM_WEBHOOK_SECRET "$TELEGRAM_WEBHOOK_SECRET"
+  set_env INTERNAL_API_SECRET "$INTERNAL_API_SECRET"
+  echo "· Bot: @$TELEGRAM_BOT_USERNAME"
+fi
+
 # Run the API in the Vercel region closest to the database: every request
 # makes several database calls, so distance between them adds up fast.
 case "$REGION" in
@@ -137,6 +157,14 @@ fi
 
 echo "==> Deploying to production"
 vercel --prod
+
+if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+  APP_URL="${APP_URL:-}"
+  [[ -z "$APP_URL" ]] && read -rp "Production URL (e.g. https://acme.vercel.app): " APP_URL
+  echo "==> Pointing the Telegram bot at $APP_URL"
+  TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" TELEGRAM_WEBHOOK_SECRET="$TELEGRAM_WEBHOOK_SECRET" \
+    python3 scripts/setup_telegram.py --webhook-url "$APP_URL"
+fi
 
 echo
 echo "Deploy complete. Finish Supabase Auth redirect configuration:"

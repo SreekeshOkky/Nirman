@@ -4,6 +4,8 @@ export const DEFAULT_FEATURES = {
   notes: true,
   signup: true,
   scan: true,
+  // Off until the API confirms a bot token is configured.
+  telegram: false,
 };
 
 export async function loadFeatures(baseUrl) {
