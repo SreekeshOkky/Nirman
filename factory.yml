@@ -1,0 +1,66 @@
+# factory.yml: the contract between this repo and the software factory.
+# Written by the onboard-repo skill. The orchestrator reads exactly these keys;
+# don't rename, drop or add top-level keys. The factory itself never edits
+# this file (it is always a protected path).
+
+# Install dependencies from the lockfile. Runs in a fresh clone.
+install: "npm ci && python3 -m venv .venv && .venv/bin/pip install -q -r requirements-dev.txt"
+
+# Static check: the repo has no type checker or linter, so the build is the gate.
+check: "npm run check"
+
+# The test suite. Needs the factory's local Supabase (services/supabase.yml in
+# the factory repo); it resets and migrates that database. No secrets or internet.
+test: ".venv/bin/python -m pytest -q && npm test && npm run test:e2e"
+
+# Reset and seed the test Supabase, then build the web app and serve it with the
+# real API (tests/supabase). Used for screenshots and verification.
+start: "npm run start:test -- 4173"
+
+port: 4173
+ready_path: "/health"
+
+# Map of the running app for the verifier agent (who reads no source code).
+navigation_doc: docs/app-navigation.md
+
+# Globs the factory must never change. Existing migrations are listed one by one
+# so that tickets can still add new ones.
+protected_paths:
+  - ".env*"
+  - "supabase/config.toml"
+  - "supabase/migrations/202409230001_initial_schema.sql"
+  - "supabase/migrations/202409230002_storage_policies.sql"
+  - "supabase/migrations/202409230003_notes_edit_delete.sql"
+  - "supabase/migrations/202609080001_user_categories.sql"
+  - "supabase/migrations/202610190001_ledger_paid_to.sql"
+  - "scripts/deploy-*.sh"
+  - "scripts/rebrand.sh"
+  - "vercel.json"
+  - "opencode.json"
+
+commit_style:
+  prefixes: [feat, fix, perf, refactor, test, docs]
+  trailer: "Jira: {KEY}"
+
+ticket_modes:
+  default:
+    match: {}
+    recipe: |
+      Write failing tests for each acceptance criterion before any implementation.
+      - API behaviour (data, permissions, validation, reports): pytest in `tests/`
+        using the `api` fixture, as in `tests/test_supabase.py`. Assert the
+        status code and response body, and the 403 case when access matters.
+      - Component or formatting logic: Vitest in `tests/unit/`, asserting by role
+        or visible text.
+      - Anything a user does on screen: a Playwright test in `tests/e2e/` that
+        signs in with a seeded account and asserts what is visible.
+      A red test must fail on an assertion, not on a syntax or import error in the
+      test itself. For a schema or permission change, add a new migration and
+      test it through the API, or directly against Supabase for row-level
+      security.
+  docs:
+    match:
+      labels: [docs]
+    recipe: |
+      Add a failing pytest in `tests/` that reads the documentation file and
+      asserts that the required headings or statements are present.
