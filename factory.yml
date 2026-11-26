@@ -4,17 +4,18 @@
 # this file (it is always a protected path).
 
 # Install dependencies from the lockfile. Runs in a fresh clone.
-install: "npm ci && python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt"
+install: "npm ci && python3 -m venv .venv && .venv/bin/pip install -q -r requirements-dev.txt"
 
 # Static check: the repo has no type checker or linter, so the build is the gate.
 check: "npm run check"
 
-# The test suite. Must not need secrets or network.
+# The test suite. Needs the factory's local Supabase (services/supabase.yml in
+# the factory repo); it resets and migrates that database. No secrets or internet.
 test: ".venv/bin/python -m pytest -q && npm test && npm run test:e2e"
 
-# Build the web app and serve it with the real API on an in-memory fake of
-# Supabase (tests/fake_backend). Used for screenshots and verification.
-start: "npm run start:fake -- 4173"
+# Reset and seed the test Supabase, then build the web app and serve it with the
+# real API (tests/supabase). Used for screenshots and verification.
+start: "npm run start:test -- 4173"
 
 port: 4173
 ready_path: "/health"
@@ -47,15 +48,16 @@ ticket_modes:
     recipe: |
       Write failing tests for each acceptance criterion before any implementation.
       - API behaviour (data, permissions, validation, reports): pytest in `tests/`
-        using the `fake` fixture, as in `tests/test_fake_backend.py`. Assert the
+        using the `api` fixture, as in `tests/test_supabase.py`. Assert the
         status code and response body, and the 403 case when access matters.
       - Component or formatting logic: Vitest in `tests/unit/`, asserting by role
         or visible text.
       - Anything a user does on screen: a Playwright test in `tests/e2e/` that
         signs in with a seeded account and asserts what is visible.
       A red test must fail on an assertion, not on a syntax or import error in the
-      test itself. If the ticket needs a schema change, add a new migration and
-      mirror it in `tests/fake_backend/store.py`.
+      test itself. For a schema or permission change, add a new migration and
+      test it through the API, or directly against Supabase for row-level
+      security.
   docs:
     match:
       labels: [docs]

@@ -5,12 +5,12 @@ browser and reads no source code. Keep it current when routes or persistent UI
 change.
 
 - **Base URL:** `http://localhost:4173` (started with `factory.yml` `start`)
-- **Backend:** an in-memory fake with demo data. It resets every time the app starts.
+- **Backend:** a real local Supabase with demo data. It resets every time the app starts.
 - **Viewports:** desktop above 800px wide (left sidebar); 800px and below uses a bottom bar.
 - **Theme:** Me → "Name and appearance" (`/settings`), radios Light / Dark / Match my device. Dark sets `data-theme="dark"` on `<html>`.
 
 ## Signing in
-Every screen needs a sign-in form at `/`. Test accounts (fake, local only):
+Every screen needs a sign-in form at `/`. Test accounts (local only):
 
 | Role | Email | Password | Sees |
 |---|---|---|---|
@@ -66,7 +66,7 @@ Sites, Add, Updates and Me.
 - Deleting an entry asks for confirmation, then shows a toast with "Undo".
 
 ## Doesn't work locally
-- Emails: invites and password resets report success but send nothing.
-- Sign-up creates an account but never confirms or signs it in.
+- Emails are not delivered. Invite and password-reset mail is caught by a local mail sink: read it at `http://factory-supabase-mail:8025`.
+- Sign-up confirms the account immediately (a hosted project asks for email confirmation).
 - "Scan UPI" downloads its OCR model from a CDN, so it needs network access.
-- Database security rules (RLS) are not simulated. Fonts from Google may not load.
+- Fonts from Google may not load.

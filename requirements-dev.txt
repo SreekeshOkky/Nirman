@@ -1,0 +1,3 @@
+-r requirements.txt
+# Test only: rebuilds the test database from the migrations.
+psycopg[binary]==3.3.9

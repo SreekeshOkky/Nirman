@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// Fake accounts from tests/fake_backend/seed.py.
+// Test accounts from tests/supabase/seed.py.
 const PASSWORD = "factory-test-password";
 
 async function signIn(page, email) {
