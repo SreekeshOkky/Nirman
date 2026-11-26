@@ -9,3 +9,7 @@ __pycache__/
 .pytest_cache/
 supabase/.temp/
 .DS_Store
+dist-fake-*/
+test-results/
+playwright-report/
+coverage/
